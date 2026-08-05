@@ -5,6 +5,15 @@ import uvicorn
 import bcrypt
 import base64
 import io
+import mimetypes
+
+# Explicitly register JavaScript MIME types to satisfy Chrome module requirements (crbug/1173575)
+mimetypes.init()
+mimetypes.add_type("application/javascript", ".js")
+mimetypes.add_type("application/javascript", ".mjs")
+mimetypes.add_type("application/javascript", ".jsx")
+mimetypes.add_type("text/css", ".css")
+mimetypes.add_type("image/svg+xml", ".svg")
 
 # Optional OCR dependencies (graceful fallback if not installed)
 try:
