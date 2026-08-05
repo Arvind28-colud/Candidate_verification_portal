@@ -1,0 +1,52 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Node modules & frontend dependencies
+frontend/node_modules/
+frontend/.vite/
+
+# Database files
+*.sqlite
+*.db
+*.sql
+
+# Environment variables & credentials
+.env
+.env.*
+!*.example
+
+# Backups & Data
+candidates_backup.json
+
+# Operating system files
+.DS_Store
+Thumbs.db

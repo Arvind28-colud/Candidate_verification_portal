@@ -1,0 +1,18 @@
+providers = ["python", "node"]
+
+[phases.setup]
+nixPkgs = ["tesseract", "tesseract-data-eng"]
+
+[phases.install]
+cmds = [
+  "pip install -r requirements.txt",
+  "cd frontend && npm install"
+]
+
+[phases.build]
+cmds = [
+  "cd frontend && npm run build"
+]
+
+[start]
+cmd = "sh -c 'gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:${PORT:-8001}'"
