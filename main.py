@@ -27,7 +27,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from typing import Optional, List
@@ -103,11 +103,25 @@ def serve_react_app():
         }
     )
 
+@app.get("/favicon.ico", include_in_schema=False)
+@app.get("/favicon.svg", include_in_schema=False)
+def serve_favicon():
+    for fav_path in ["frontend/dist/favicon.svg", "frontend/public/favicon.svg", "static/favicon.svg"]:
+        if os.path.exists(fav_path):
+            return FileResponse(fav_path, media_type="image/svg+xml")
+    return Response(status_code=204)
+
+@app.get("/health", include_in_schema=False)
+@app.get("/api/health", include_in_schema=False)
+def health_check():
+    return {"status": "ok", "service": "Candidate Verification API"}
+
 @app.exception_handler(404)
 async def not_found_spa_fallback(request: Request, exc):
     """Fallback handler to route any frontend SPA navigation route back to index.html."""
-    if request.url.path.startswith("/api") or request.url.path.startswith("/assets"):
-        return JSONResponse(status_code=404, content={"detail": f"Path '{request.url.path}' not found."})
+    path = request.url.path
+    if path.startswith("/api") or path.startswith("/assets") or path.endswith(".ico") or path.endswith(".png") or path.endswith(".jpg") or path.endswith(".map"):
+        return JSONResponse(status_code=404, content={"detail": f"Path '{path}' not found."})
     return serve_react_app()
 
 @app.get("/", include_in_schema=False)

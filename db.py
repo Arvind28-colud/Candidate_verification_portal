@@ -63,12 +63,15 @@ def init_db():
         cursor = conn.cursor()
         if db_type == "mysql":
             # First create database if missing
-            temp_conn = pymysql.connect(
-                host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASSWORD
-            )
-            with temp_conn.cursor() as temp_cursor:
-                temp_cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME} CHARACTER SET utf8mb4;")
-            temp_conn.close()
+            try:
+                temp_conn = pymysql.connect(
+                    host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASSWORD, connect_timeout=3
+                )
+                with temp_conn.cursor() as temp_cursor:
+                    temp_cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME} CHARACTER SET utf8mb4;")
+                temp_conn.close()
+            except Exception as _ex:
+                logger.warning(f"Database pre-creation notice: {_ex}")
 
             # Create MySQL Tables with complete modern schema
             cursor.execute(f"USE {DB_NAME};")
