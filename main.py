@@ -41,23 +41,23 @@ from pdf_backend import generate_candidate_pdf_bytes, generate_bulk_pdfs_zip_byt
 logger = logging.getLogger("main")
 
 def compress_image_b64(b64_str: str, max_size=(640, 640), quality=75) -> str:
-    """Compresses heavy Base64 image to 640x640 JPEG (~50-80KB) for instant loading."""
+    """Compresses heavy Base64 image to 640x640 JPEG (~50-80KB) instantly."""
     if not b64_str or len(b64_str) < 100:
         return b64_str or ""
+    # If image base64 is already small (<120KB), return as-is for maximum speed
+    if len(b64_str) < 120000 and "image/jpeg" in b64_str:
+        return b64_str
     try:
         from PIL import Image
-        header = ""
-        clean_data = b64_str
-        if "," in b64_str:
-            header, clean_data = b64_str.split(",", 1)
+        clean_data = b64_str.split(",", 1)[1] if "," in b64_str else b64_str
         
         img_bytes = base64.b64decode(clean_data)
         img = Image.open(io.BytesIO(img_bytes))
         img = img.convert("RGB")
-        img.thumbnail(max_size, Image.Resampling.LANCZOS)
+        img.thumbnail(max_size, Image.Resampling.BILINEAR)
         
         out_buf = io.BytesIO()
-        img.save(out_buf, format="JPEG", quality=quality, optimize=True)
+        img.save(out_buf, format="JPEG", quality=quality)
         compressed_b64 = base64.b64encode(out_buf.getvalue()).decode("utf-8")
         return f"data:image/jpeg;base64,{compressed_b64}"
     except Exception as e:
@@ -140,9 +140,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Startup candidate ID re-sequence notice: {e}")
     try:
-        compress_existing_db_images()
+        import threading
+        threading.Thread(target=compress_existing_db_images, daemon=True).start()
     except Exception as e:
-        logger.warning(f"Startup DB image compression notice: {e}")
+        logger.warning(f"Startup DB image compression thread notice: {e}")
     yield
 
 app = FastAPI(
