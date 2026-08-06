@@ -1663,9 +1663,18 @@ def attach_company_logos(candidates_list):
         c["hide_company_name"] = hide_map.get(c_comp, False)
     return candidates_list
 
+LIGHT_CANDIDATE_FIELDS = """
+    id, candidate_id, company_name, full_name, reg_father_name, father_name,
+    email, phone, aadhaar_number, reg_dob, reg_gender, reg_address,
+    reg_project_name, reg_state, reg_district, reg_designation,
+    verification_status, client_ref_id, verified_name, verified_father_name,
+    verified_dob, verified_gender, verified_address, card_ocr_status, card_ocr_name,
+    face_match_status, face_match_score, created_at, verified_at
+"""
+
 @app.get("/api/candidates")
 def list_candidates(company: Optional[str] = None, user=Depends(verify_token)):
-    """Retrieve candidates from database with all fields for instant modal rendering."""
+    """Retrieve candidates directory list with light text fields for instant page rendering."""
     if user.get("role") != "admin":
         target_company = user.get("company_name")
     else:
@@ -1673,13 +1682,13 @@ def list_candidates(company: Optional[str] = None, user=Depends(verify_token)):
     
     if target_company and target_company != "ALL":
         candidates = execute_query(
-            "SELECT * FROM candidates WHERE LOWER(TRIM(company_name)) = LOWER(TRIM(%s)) ORDER BY id DESC",
+            f"SELECT {LIGHT_CANDIDATE_FIELDS} FROM candidates WHERE LOWER(TRIM(company_name)) = LOWER(TRIM(%s)) ORDER BY id DESC",
             (target_company,),
             fetch_all=True
         )
     else:
         candidates = execute_query(
-            "SELECT * FROM candidates ORDER BY id DESC",
+            f"SELECT {LIGHT_CANDIDATE_FIELDS} FROM candidates ORDER BY id DESC",
             fetch_all=True
         )
     attach_company_logos(candidates)
