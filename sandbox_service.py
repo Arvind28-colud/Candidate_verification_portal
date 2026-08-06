@@ -126,10 +126,15 @@ class SandboxService:
                     "reason": "Candidate Aadhaar e-KYC Verification"
                 }
 
+                # Try Primary OKYC Endpoint first, then Fallback V2 Endpoint on attempt 2
+                endpoint_url = f"{SANDBOX_BASE_URL}/kyc/aadhaar/okyc/otp" if attempt == 1 else f"{SANDBOX_BASE_URL}/kyc/aadhaar/v2/otp"
+                if attempt > 1:
+                    payload["@entity"] = "in.co.sandbox.kyc.aadhaar.v2.otp.request"
+
                 SandboxService._rate_limit_stagger()
 
                 response = requests.post(
-                    f"{SANDBOX_BASE_URL}/kyc/aadhaar/okyc/otp",
+                    endpoint_url,
                     json=payload,
                     headers=headers,
                     timeout=12
@@ -142,9 +147,9 @@ class SandboxService:
                 msg = data_obj.get("message") or res_json.get("message") or ""
                 msg_lower = msg.lower()
 
-                # If 503 Source Unavailable occurs on attempt 1, sleep 1.2s and retry
+                # If 503 Source Unavailable occurs on attempt 1, sleep 1.2s and retry with failover endpoint
                 if (response.status_code == 503 or res_json.get("code") == 503 or "source unavailable" in msg_lower) and attempt < max_attempts:
-                    logger.warning(f"[Sandbox] Got 503 Source Unavailable on generate_otp attempt #{attempt}. Retrying in 1.2 seconds...")
+                    logger.warning(f"[Sandbox] Got 503 Source Unavailable on generate_otp attempt #{attempt}. Retrying with failover endpoint in 1.2 seconds...")
                     time.sleep(1.2)
                     continue
 
@@ -234,16 +239,15 @@ class SandboxService:
                     "x-api-version": "1.0",
                     "Content-Type": "application/json"
                 }
-                payload = {
-                    "@entity": "in.co.sandbox.kyc.aadhaar.okyc.request",
-                    "reference_id": client_id,
-                    "otp": otp
-                }
+                # Try Primary OKYC Verify Endpoint first, then Fallback V2 Verify Endpoint on attempt 2
+                endpoint_url = f"{SANDBOX_BASE_URL}/kyc/aadhaar/okyc/otp/verify" if attempt == 1 else f"{SANDBOX_BASE_URL}/kyc/aadhaar/v2/otp/verify"
+                if attempt > 1:
+                    payload["@entity"] = "in.co.sandbox.kyc.aadhaar.v2.request"
 
                 SandboxService._rate_limit_stagger()
 
                 response = requests.post(
-                    f"{SANDBOX_BASE_URL}/kyc/aadhaar/okyc/otp/verify",
+                    endpoint_url,
                     json=payload,
                     headers=headers,
                     timeout=30
@@ -255,9 +259,9 @@ class SandboxService:
                 data_obj = res_json.get("data") if isinstance(res_json.get("data"), dict) else (res_json.get("result") if isinstance(res_json.get("result"), dict) else {})
                 msg_str = str(data_obj.get("message") or res_json.get("message") or res_json.get("detail") or "")
 
-                # If 503 Source Unavailable occurs on attempt #1, sleep 1.2s and retry!
+                # If 503 Source Unavailable occurs on attempt #1, sleep 1.2s and retry with failover endpoint
                 if (response.status_code == 503 or res_json.get("code") == 503 or "source unavailable" in msg_str.lower()) and attempt < max_attempts:
-                    logger.warning(f"[Sandbox] Got 503 Source Unavailable on submit_otp attempt #{attempt}. Retrying in 1.2 seconds...")
+                    logger.warning(f"[Sandbox] Got 503 Source Unavailable on submit_otp attempt #{attempt}. Retrying with failover endpoint in 1.2 seconds...")
                     time.sleep(1.2)
                     continue
 

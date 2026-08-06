@@ -114,6 +114,33 @@ def compress_existing_db_images():
     except Exception as e:
         logger.warning(f"Database image auto-compression notice: {e}")
 
+def log_otp_event(candidate_id: str, company_name: str, candidate_name: str, aadhaar_number: str, phone: str, event_type: str, status: str, message: str, client_id: str = ""):
+    """Helper to log OTP generation, verification, and failure events to otp_logs database table."""
+    try:
+        clean_aadhaar = str(aadhaar_number or "").replace(" ", "").replace("-", "")
+        masked_aadhaar = f"XXXX-XXXX-{clean_aadhaar[-4:]}" if len(clean_aadhaar) >= 4 else clean_aadhaar
+        clean_phone = str(phone or "")
+        masked_phone = f"XXXXXX-{clean_phone[-4:]}" if len(clean_phone) >= 4 else clean_phone
+        
+        sql = """
+            INSERT INTO otp_logs 
+            (candidate_id, company_name, candidate_name, aadhaar_number, phone, event_type, status, message, client_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        execute_query(sql, (
+            candidate_id or "",
+            company_name or "",
+            candidate_name or "",
+            masked_aadhaar,
+            masked_phone,
+            event_type,
+            status,
+            message or "",
+            client_id or ""
+        ))
+    except Exception as e:
+        logger.warning(f"Error logging OTP event: {e}")
+
 # JWT Config
 _JWT_SECRET_ENV = os.getenv("JWT_SECRET", "")
 if not _JWT_SECRET_ENV:
@@ -1540,6 +1567,10 @@ def initiate_verification(req: InitiateVerificationRequest, user=Depends(verify_
 
     res = SandboxService.generate_otp(target_aadhaar)
     if not res.get("success"):
+        log_otp_event(
+            candidate["candidate_id"], candidate["company_name"], candidate["full_name"],
+            target_aadhaar, candidate["phone"], "OTP_DISPATCHED", "FAILED", res.get("message") or "Failed to generate OTP"
+        )
         raise HTTPException(status_code=400, detail=res.get("message"))
 
     # Record dispatch timestamp ONLY after successful OTP generation
@@ -1550,6 +1581,11 @@ def initiate_verification(req: InitiateVerificationRequest, user=Depends(verify_
     execute_query(
         "UPDATE candidates SET client_ref_id = %s WHERE candidate_id = %s AND company_name = %s",
         (client_id, req.candidate_id, candidate["company_name"])
+    )
+
+    log_otp_event(
+        candidate["candidate_id"], candidate["company_name"], candidate["full_name"],
+        target_aadhaar, candidate["phone"], "OTP_DISPATCHED", "SUCCESS", res.get("message") or "OTP dispatched successfully", client_id
     )
 
     return {
@@ -1617,7 +1653,16 @@ def confirm_verification(req: ConfirmVerificationRequest, user=Depends(verify_to
             "UPDATE candidates SET verification_status = 'FAILED' WHERE candidate_id = %s AND company_name = %s",
             (req.candidate_id, candidate["company_name"])
         )
+        log_otp_event(
+            candidate["candidate_id"], candidate["company_name"], candidate["full_name"],
+            candidate["aadhaar_number"], candidate["phone"], "VERIFIED_FAILED", "FAILED", res.get("message") or "OTP verification failed", client_id
+        )
         raise HTTPException(status_code=400, detail=res.get("message"))
+
+    log_otp_event(
+        candidate["candidate_id"], candidate["company_name"], candidate["full_name"],
+        candidate["aadhaar_number"], candidate["phone"], "VERIFIED_SUCCESS", "SUCCESS", res.get("message") or "Aadhaar e-KYC verified successfully", client_id
+    )
 
     data = res.get("data", {})
     
@@ -2152,6 +2197,10 @@ def public_initiate_verification(req: PublicOtpInitiateRequest):
 
     res = SandboxService.generate_otp(target_aadhaar)
     if not res.get("success"):
+        log_otp_event(
+            candidate["candidate_id"], candidate["company_name"], candidate["full_name"],
+            target_aadhaar, candidate["phone"], "OTP_DISPATCHED", "FAILED", res.get("message") or "Failed to generate OTP"
+        )
         raise HTTPException(status_code=400, detail=res.get("message"))
 
     # Record dispatch timestamp ONLY after successful OTP generation
@@ -2162,6 +2211,11 @@ def public_initiate_verification(req: PublicOtpInitiateRequest):
     execute_query(
         "UPDATE candidates SET aadhaar_number = %s, client_ref_id = %s WHERE candidate_id = %s AND company_name = %s",
         (target_aadhaar, client_id, candidate["candidate_id"], candidate["company_name"])
+    )
+
+    log_otp_event(
+        candidate["candidate_id"], candidate["company_name"], candidate["full_name"],
+        target_aadhaar, candidate["phone"], "OTP_DISPATCHED", "SUCCESS", res.get("message") or "OTP dispatched successfully", client_id
     )
 
     return {
@@ -2204,7 +2258,16 @@ def public_confirm_verification(req: PublicOtpConfirmRequest):
         aadhaar_number=candidate.get("aadhaar_number", "")
     )
     if not res.get("success"):
+        log_otp_event(
+            candidate.get("candidate_id", ""), candidate.get("company_name", ""), candidate.get("full_name", ""),
+            candidate.get("aadhaar_number", ""), candidate.get("phone", ""), "VERIFIED_FAILED", "FAILED", res.get("message") or "OTP verification failed", req.client_id
+        )
         raise HTTPException(status_code=400, detail=res.get("message"))
+
+    log_otp_event(
+        candidate.get("candidate_id", ""), candidate.get("company_name", ""), candidate.get("full_name", ""),
+        candidate.get("aadhaar_number", ""), candidate.get("phone", ""), "VERIFIED_SUCCESS", "SUCCESS", res.get("message") or "Aadhaar e-KYC verified successfully", req.client_id
+    )
 
     data = res.get("data", {})
     v_name = data.get("full_name") or data.get("name") or ""
@@ -2390,6 +2453,76 @@ def delete_candidate_via_delete(candidate_id: str, company: Optional[str] = None
 def delete_candidate_via_post(candidate_id: str, company: Optional[str] = None, user=Depends(verify_token)):
     """Deletes a candidate record completely via POST method fallback."""
     return _do_delete_candidate(candidate_id, user, company)
+
+@app.get("/api/otp-analytics")
+def get_otp_analytics(user=Depends(verify_token)):
+    """Returns aggregated OTP KPI statistics and live audit logs for Admin & Company admins."""
+    try:
+        user_company = user.get("company_name") if user.get("role") != "admin" else None
+        
+        # Build SQL filter
+        where_clause = ""
+        params = []
+        if user_company:
+            where_clause = "WHERE company_name = %s"
+            params.append(user_company)
+            
+        # 1. Fetch KPI Counts
+        sql_counts = f"""
+            SELECT 
+                COUNT(*) as total_logs,
+                SUM(CASE WHEN event_type = 'OTP_DISPATCHED' AND status = 'SUCCESS' THEN 1 ELSE 0 END) as total_dispatched,
+                SUM(CASE WHEN event_type = 'VERIFIED_SUCCESS' THEN 1 ELSE 0 END) as verified_success,
+                SUM(CASE WHEN status = 'FAILED' OR event_type = 'VERIFIED_FAILED' THEN 1 ELSE 0 END) as failed_expired
+            FROM otp_logs {where_clause}
+        """
+        counts = execute_query(sql_counts, tuple(params), fetch_one=True) or {}
+        
+        tot_disp = int(counts.get("total_dispatched") or 0)
+        ver_succ = int(counts.get("verified_success") or 0)
+        fail_exp = int(counts.get("failed_expired") or 0)
+        
+        success_rate = round((ver_succ / tot_disp * 100), 1) if tot_disp > 0 else (100.0 if ver_succ > 0 else 0.0)
+        
+        # 2. Fetch Recent Logs (last 200 logs)
+        sql_logs = f"""
+            SELECT id, candidate_id, company_name, candidate_name, aadhaar_number, phone, event_type, status, message, client_id, created_at
+            FROM otp_logs {where_clause}
+            ORDER BY id DESC LIMIT 200
+        """
+        raw_logs = execute_query(sql_logs, tuple(params), fetch_all=True) or []
+        
+        formatted_logs = []
+        for r in raw_logs:
+            created = str(r.get("created_at") or "")
+            formatted_logs.append({
+                "id": r.get("id"),
+                "candidate_id": r.get("candidate_id") or "",
+                "company_name": r.get("company_name") or "",
+                "candidate_name": r.get("candidate_name") or "",
+                "aadhaar_number": r.get("aadhaar_number") or "",
+                "phone": r.get("phone") or "",
+                "event_type": r.get("event_type") or "",
+                "status": r.get("status") or "",
+                "message": r.get("message") or "",
+                "client_id": r.get("client_id") or "",
+                "created_at": created
+            })
+
+        return {
+            "success": True,
+            "kpi": {
+                "total_dispatched": tot_disp,
+                "verified_success": ver_succ,
+                "failed_expired": fail_exp,
+                "success_rate": success_rate,
+                "api_credits_used": tot_disp
+            },
+            "logs": formatted_logs
+        }
+    except Exception as e:
+        logger.error(f"Error fetching OTP analytics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8001))

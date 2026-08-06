@@ -132,6 +132,22 @@ def init_db():
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS otp_logs (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    candidate_id VARCHAR(50),
+                    company_name VARCHAR(255),
+                    candidate_name VARCHAR(255),
+                    aadhaar_number VARCHAR(20),
+                    phone VARCHAR(20),
+                    event_type VARCHAR(50),
+                    status VARCHAR(50),
+                    message TEXT,
+                    client_id VARCHAR(100),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """)
             # Safe migrations for MySQL (existing DBs)
             for migration_sql in [
                 "ALTER TABLE users ADD COLUMN logo_base64 LONGTEXT DEFAULT NULL",
@@ -206,6 +222,22 @@ def init_db():
                     link_enabled INTEGER DEFAULT 1,
                     hide_company_name INTEGER DEFAULT 0,
                     company_token TEXT DEFAULT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS otp_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    candidate_id TEXT,
+                    company_name TEXT,
+                    candidate_name TEXT,
+                    aadhaar_number TEXT,
+                    phone TEXT,
+                    event_type TEXT,
+                    status TEXT,
+                    message TEXT,
+                    client_id TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
             """)

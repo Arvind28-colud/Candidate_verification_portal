@@ -6,6 +6,7 @@ import CompanyManagementTab from './components/CompanyManagementTab';
 import CandidatesTab from './components/CandidatesTab';
 import RegistrationTab from './components/RegistrationTab';
 import AnalyticsTab from './components/AnalyticsTab';
+import OtpAnalyticsTab from './components/OtpAnalyticsTab';
 import OtpModal from './components/OtpModal';
 import ComparisonModal from './components/ComparisonModal';
 import PdfReportModal from './components/PdfReportModal';
@@ -190,6 +191,10 @@ function App() {
               setActiveTab('candidates');
             }}
           />
+        )}
+
+        {activeTab === 'otp_analytics' && (
+          <OtpAnalyticsTab token={token} />
         )}
 
         {activeTab === 'analytics' && (

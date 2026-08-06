@@ -7,6 +7,7 @@ const Sidebar = ({ activeTab, setActiveTab, user, onLogout }) => {
     { id: 'candidates', label: 'Candidates', icon: Users, desc: 'Candidate Directory & Status Tracking' },
     { id: 'companies', label: 'Company', icon: Building2, desc: 'Organization Profiles & Links' },
     { id: 'register_candidate', label: 'Registration', icon: UserPlus, desc: 'Single Candidate e-KYC Registration' },
+    { id: 'otp_analytics', label: 'OTP Analytics', icon: ShieldCheck, desc: 'Live OTP Dispatches & Audit Logs' },
     { id: 'analytics', label: 'Analytics', icon: BarChart3, desc: 'Success & Failure Rate Breakdown' },
   ];
 
