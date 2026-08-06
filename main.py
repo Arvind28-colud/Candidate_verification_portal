@@ -64,6 +64,56 @@ def compress_image_b64(b64_str: str, max_size=(640, 640), quality=75) -> str:
         logger.warning(f"Image compression notice: {e}")
         return b64_str
 
+def compress_existing_db_images():
+    """Scans DB and automatically compresses existing heavy candidate photos (>150KB) to 640x640 JPEG (~50KB) for instant report loading."""
+    try:
+        rows = execute_query(
+            "SELECT id, candidate_id, face_photo_base64, aadhaar_front_base64, aadhaar_back_base64, photo_base64 FROM candidates",
+            fetch_all=True
+        )
+        if not rows:
+            return
+        
+        updated_count = 0
+        for r in rows:
+            row_id = r.get("id")
+            c_face = r.get("face_photo_base64") or ""
+            c_front = r.get("aadhaar_front_base64") or ""
+            c_back = r.get("aadhaar_back_base64") or ""
+            c_photo = r.get("photo_base64") or ""
+            
+            # Check if any photo is uncompressed (> 150KB base64 string)
+            needs_update = False
+            new_face = c_face
+            new_front = c_front
+            new_back = c_back
+            new_photo = c_photo
+            
+            if len(c_face) > 150000:
+                new_face = compress_image_b64(c_face)
+                needs_update = True
+            if len(c_front) > 150000:
+                new_front = compress_image_b64(c_front)
+                needs_update = True
+            if len(c_back) > 150000:
+                new_back = compress_image_b64(c_back)
+                needs_update = True
+            if len(c_photo) > 150000:
+                new_photo = compress_image_b64(c_photo)
+                needs_update = True
+                
+            if needs_update:
+                execute_query(
+                    "UPDATE candidates SET face_photo_base64 = %s, aadhaar_front_base64 = %s, aadhaar_back_base64 = %s, photo_base64 = %s WHERE id = %s",
+                    (new_face, new_front, new_back, new_photo, row_id)
+                )
+                updated_count += 1
+                
+        if updated_count > 0:
+            logger.info(f"[Image Optimizer] Auto-compressed photos for {updated_count} existing candidate records in database.")
+    except Exception as e:
+        logger.warning(f"Database image auto-compression notice: {e}")
+
 # JWT Config
 _JWT_SECRET_ENV = os.getenv("JWT_SECRET", "")
 if not _JWT_SECRET_ENV:
@@ -89,6 +139,10 @@ async def lifespan(app: FastAPI):
         resequence_all_candidate_ids()
     except Exception as e:
         logger.warning(f"Startup candidate ID re-sequence notice: {e}")
+    try:
+        compress_existing_db_images()
+    except Exception as e:
+        logger.warning(f"Startup DB image compression notice: {e}")
     yield
 
 app = FastAPI(
