@@ -257,16 +257,6 @@ const DashboardTab = ({ token, activeCompany: parentActiveCompany, initialStatus
 
         <div className="flex flex-wrap items-center gap-2.5">
           <button
-            onClick={handleRunBatchFaceVerify}
-            disabled={candidates.length === 0 || runningFaceVerify}
-            className="px-3.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold flex items-center space-x-1.5 shadow-md shadow-blue-200 transition-all cursor-pointer disabled:opacity-50"
-            title="Run ArcFace AI facial verification on all candidates"
-          >
-            {runningFaceVerify ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
-            <span>{runningFaceVerify ? 'Verifying...' : 'Run Facial Verification'}</span>
-          </button>
-
-          <button
             onClick={() => fetchData()}
             className="px-3.5 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer shadow-xs"
           >

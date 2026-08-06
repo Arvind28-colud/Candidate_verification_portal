@@ -363,17 +363,6 @@ const UploadedCandidatesTab = ({ token, activeCompany, onOpenVerifyModal }) => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {/* RUN BATCH FACE VERIFY BUTTON */}
-          <button
-            onClick={handleRunBatchFaceVerify}
-            disabled={candidates.length === 0 || runningFaceVerify}
-            className="px-3.5 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold flex items-center space-x-1.5 shadow-md shadow-blue-200 transition-all cursor-pointer disabled:opacity-50"
-            title="Run ArcFace AI facial verification on all candidates in database"
-          >
-            {runningFaceVerify ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-            <span>{runningFaceVerify ? 'Verifying Faces...' : 'Run Facial Verification'}</span>
-          </button>
-
           {/* EXCEL EXPORT BUTTON */}
           <div className="relative inline-block text-left">
             <button

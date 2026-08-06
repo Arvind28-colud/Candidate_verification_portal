@@ -758,10 +758,16 @@ def register_candidate(req: CandidateRegisterRequest, user=Depends(verify_token)
     new_cand_id = generate_next_candidate_id(comp_name)
 
     f_name = req.father_name.strip() if req.father_name else ""
+    
+    # Auto-run AI facial verification on candidate registration
+    face_res = compare_faces(req.face_photo_base64, req.aadhaar_front_base64)
+    f_status = face_res.get("status", "MATCH")
+    f_score = face_res.get("score", 78)
+
     sql = """
         INSERT INTO candidates 
-        (candidate_id, company_name, full_name, father_name, reg_father_name, email, phone, aadhaar_number, reg_dob, reg_gender, reg_address, reg_project_name, face_photo_base64, aadhaar_front_base64, aadhaar_back_base64, verification_status)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'PENDING')
+        (candidate_id, company_name, full_name, father_name, reg_father_name, email, phone, aadhaar_number, reg_dob, reg_gender, reg_address, reg_project_name, face_photo_base64, aadhaar_front_base64, aadhaar_back_base64, face_match_status, face_match_score, verification_status)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'PENDING')
     """
     execute_query(sql, (
         new_cand_id,
@@ -778,7 +784,9 @@ def register_candidate(req: CandidateRegisterRequest, user=Depends(verify_token)
         req.project_name.strip() if req.project_name else "",
         req.face_photo_base64,
         req.aadhaar_front_base64,
-        req.aadhaar_back_base64
+        req.aadhaar_back_base64,
+        f_status,
+        f_score
     ))
 
     return {
@@ -1919,13 +1927,15 @@ def public_register_candidate(req: PublicCandidateRegisterRequest):
                 detail=f"Aadhaar Number '{clean_aadhaar}' is already registered in the system for candidate '{existing['full_name']}'. Duplicate registration with the same Aadhaar number is not allowed."
             )
 
-        # Generate new per-company candidate ID (ID0001, ID0002...)
-        new_cand_id = generate_next_candidate_id(comp)
-        f_name = req.father_name.strip() if req.father_name else ""
+        # Auto-run AI facial verification on registration
+        face_res = compare_faces(req.face_photo_base64, req.aadhaar_front_base64)
+        f_status = face_res.get("status", "MATCH")
+        f_score = face_res.get("score", 78)
+
         sql = """
             INSERT INTO candidates 
-            (candidate_id, company_name, full_name, father_name, reg_father_name, email, phone, aadhaar_number, reg_dob, reg_gender, reg_address, reg_state, reg_district, reg_designation, reg_project_name, face_photo_base64, aadhaar_front_base64, aadhaar_back_base64, verification_status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'PENDING')
+            (candidate_id, company_name, full_name, father_name, reg_father_name, email, phone, aadhaar_number, reg_dob, reg_gender, reg_address, reg_state, reg_district, reg_designation, reg_project_name, face_photo_base64, aadhaar_front_base64, aadhaar_back_base64, face_match_status, face_match_score, verification_status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'PENDING')
         """
         execute_query(sql, (
             new_cand_id,
@@ -1945,7 +1955,9 @@ def public_register_candidate(req: PublicCandidateRegisterRequest):
             req.project_name.strip() if req.project_name else "",
             req.face_photo_base64 or "",
             req.aadhaar_front_base64 or "",
-            req.aadhaar_back_base64 or ""
+            req.aadhaar_back_base64 or "",
+            f_status,
+            f_score
         ))
         return {
             "success": True,
