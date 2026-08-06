@@ -1190,6 +1190,55 @@ def send_whatsapp_to_candidate(req: SendWhatsAppRequest, user=Depends(verify_tok
         "dispatch_details": res
     }
 
+@app.post("/api/batch-face-verify")
+def api_batch_face_verify(user=Depends(verify_token)):
+    """Run ArcFace facial verification for all candidates in the database."""
+    try:
+        from batch_face_verify import run_batch_face_verification
+        result = run_batch_face_verification()
+        return {
+            "success": True,
+            "message": "Batch facial verification completed successfully.",
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"Error running batch face verification: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/verify-candidate-face/{candidate_id}")
+def api_verify_single_candidate_face(candidate_id: str, user=Depends(verify_token)):
+    """Run ArcFace facial verification for a single candidate."""
+    try:
+        candidate = execute_query(
+            "SELECT candidate_id, full_name, face_photo_base64, photo_base64 FROM candidates WHERE candidate_id = %s LIMIT 1",
+            (candidate_id,),
+            fetch_one=True
+        )
+        if not candidate:
+            raise HTTPException(status_code=404, detail="Candidate not found")
+        
+        live = candidate.get("face_photo_base64")
+        vault = candidate.get("photo_base64")
+        
+        res = compare_faces(live, vault)
+        status = res.get("status", "FAILED")
+        score = res.get("score", 0)
+        
+        execute_query(
+            "UPDATE candidates SET face_match_status = %s, face_match_score = %s WHERE candidate_id = %s",
+            (status, score, candidate_id)
+        )
+        return {
+            "success": True,
+            "candidate_id": candidate_id,
+            "result": res
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in single face verification: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 def encode_uri_component(text: str) -> str:
     import urllib.parse
     return urllib.parse.quote(text)
