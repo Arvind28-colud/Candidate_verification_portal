@@ -2012,6 +2012,10 @@ def public_register_candidate(req: PublicCandidateRegisterRequest):
                 detail=f"Aadhaar Number '{clean_aadhaar}' is already registered in the system for candidate '{existing['full_name']}'. Duplicate registration with the same Aadhaar number is not allowed."
             )
 
+        # Generate new candidate ID (ID0001, ID0002...)
+        new_cand_id = generate_next_candidate_id(comp)
+        f_name = req.father_name.strip() if req.father_name else ""
+
         # Compress uploaded photos to 640x640 (~50-80KB) for fast loading
         c_face = compress_image_b64(req.face_photo_base64)
         c_front = compress_image_b64(req.aadhaar_front_base64)
