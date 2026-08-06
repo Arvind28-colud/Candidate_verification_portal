@@ -40,6 +40,30 @@ from pdf_backend import generate_candidate_pdf_bytes, generate_bulk_pdfs_zip_byt
 
 logger = logging.getLogger("main")
 
+def compress_image_b64(b64_str: str, max_size=(640, 640), quality=75) -> str:
+    """Compresses heavy Base64 image to 640x640 JPEG (~50-80KB) for instant loading."""
+    if not b64_str or len(b64_str) < 100:
+        return b64_str or ""
+    try:
+        from PIL import Image
+        header = ""
+        clean_data = b64_str
+        if "," in b64_str:
+            header, clean_data = b64_str.split(",", 1)
+        
+        img_bytes = base64.b64decode(clean_data)
+        img = Image.open(io.BytesIO(img_bytes))
+        img = img.convert("RGB")
+        img.thumbnail(max_size, Image.Resampling.LANCZOS)
+        
+        out_buf = io.BytesIO()
+        img.save(out_buf, format="JPEG", quality=quality, optimize=True)
+        compressed_b64 = base64.b64encode(out_buf.getvalue()).decode("utf-8")
+        return f"data:image/jpeg;base64,{compressed_b64}"
+    except Exception as e:
+        logger.warning(f"Image compression notice: {e}")
+        return b64_str
+
 # JWT Config
 _JWT_SECRET_ENV = os.getenv("JWT_SECRET", "")
 if not _JWT_SECRET_ENV:
@@ -759,8 +783,13 @@ def register_candidate(req: CandidateRegisterRequest, user=Depends(verify_token)
 
     f_name = req.father_name.strip() if req.father_name else ""
     
+    # Compress photos to 640x640 (~50-80KB) for instant report loading
+    c_face = compress_image_b64(req.face_photo_base64)
+    c_front = compress_image_b64(req.aadhaar_front_base64)
+    c_back = compress_image_b64(req.aadhaar_back_base64)
+
     # Auto-run AI facial verification on candidate registration
-    face_res = compare_faces(req.face_photo_base64, req.aadhaar_front_base64)
+    face_res = compare_faces(c_face, c_front)
     f_status = face_res.get("status", "MATCH")
     f_score = face_res.get("score", 78)
 
@@ -782,9 +811,9 @@ def register_candidate(req: CandidateRegisterRequest, user=Depends(verify_token)
         req.gender or "",
         req.address or "",
         req.project_name.strip() if req.project_name else "",
-        req.face_photo_base64,
-        req.aadhaar_front_base64,
-        req.aadhaar_back_base64,
+        c_face,
+        c_front,
+        c_back,
         f_status,
         f_score
     ))
@@ -1543,7 +1572,8 @@ def confirm_verification(req: ConfirmVerificationRequest, user=Depends(verify_to
     v_dob = data.get("dob") or data.get("date_of_birth") or ""
     v_gender = data.get("gender") or ""
     v_address = data.get("address") or ""
-    v_photo = data.get("photo") or candidate.get("face_photo_base64") or candidate.get("photo_base64") or ""
+    raw_photo = data.get("photo") or candidate.get("face_photo_base64") or candidate.get("photo_base64") or ""
+    v_photo = compress_image_b64(raw_photo)
 
     # Run ArcFace (buffalo_l model) automatically on live selfie vs official vault photo
     live_pic = candidate.get("face_photo_base64")
@@ -1927,8 +1957,13 @@ def public_register_candidate(req: PublicCandidateRegisterRequest):
                 detail=f"Aadhaar Number '{clean_aadhaar}' is already registered in the system for candidate '{existing['full_name']}'. Duplicate registration with the same Aadhaar number is not allowed."
             )
 
+        # Compress uploaded photos to 640x640 (~50-80KB) for fast loading
+        c_face = compress_image_b64(req.face_photo_base64)
+        c_front = compress_image_b64(req.aadhaar_front_base64)
+        c_back = compress_image_b64(req.aadhaar_back_base64)
+
         # Auto-run AI facial verification on registration
-        face_res = compare_faces(req.face_photo_base64, req.aadhaar_front_base64)
+        face_res = compare_faces(c_face, c_front)
         f_status = face_res.get("status", "MATCH")
         f_score = face_res.get("score", 78)
 
@@ -1953,9 +1988,9 @@ def public_register_candidate(req: PublicCandidateRegisterRequest):
             req.district or "",
             req.designation or "",
             req.project_name.strip() if req.project_name else "",
-            req.face_photo_base64 or "",
-            req.aadhaar_front_base64 or "",
-            req.aadhaar_back_base64 or "",
+            c_face,
+            c_front,
+            c_back,
             f_status,
             f_score
         ))
@@ -2118,7 +2153,8 @@ def public_confirm_verification(req: PublicOtpConfirmRequest):
     v_dob = data.get("dob") or data.get("date_of_birth") or ""
     v_gender = data.get("gender") or ""
     v_address = data.get("address") or ""
-    v_photo = data.get("photo") or candidate.get("face_photo_base64") or candidate.get("photo_base64") or ""
+    raw_photo = data.get("photo") or candidate.get("face_photo_base64") or candidate.get("photo_base64") or ""
+    v_photo = compress_image_b64(raw_photo)
 
     # Run ArcFace (buffalo_l model) automatically on live selfie vs official vault photo
     live_pic = candidate.get("face_photo_base64")

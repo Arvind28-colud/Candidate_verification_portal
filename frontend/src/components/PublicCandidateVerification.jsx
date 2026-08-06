@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { STATES_LIST, DISTRICTS_BY_STATE, DESIGNATION_LIST } from '../config/dropdownData';
 import { detectRdServiceDevice, captureFingerprintPid } from '../utils/rdService';
+import { compressImageBase64 } from '../utils/imageCompressor';
 
 const PublicCandidateVerification = ({ candidateId: initialCandidateId, companyName: initialCompanyName }) => {
   const [candidateId, setCandidateId] = useState(initialCandidateId || '');
@@ -199,6 +200,10 @@ const PublicCandidateVerification = ({ candidateId: initialCandidateId, companyN
 
     setSavingDetails(true);
     try {
+      const compressedFace = await compressImageBase64(facePhoto);
+      const compressedFront = await compressImageBase64(aadhaarFront);
+      const compressedBack = await compressImageBase64(aadhaarBack);
+
       const res = await fetch('/api/public/candidate-register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -217,9 +222,9 @@ const PublicCandidateVerification = ({ candidateId: initialCandidateId, companyN
           district: isProjectMode ? '' : district,
           designation: designation === 'Other' ? customDesignation : designation,
           project_name: isProjectMode ? projectName.trim() : '',
-          face_photo_base64: facePhoto,
-          aadhaar_front_base64: aadhaarFront,
-          aadhaar_back_base64: aadhaarBack,
+          face_photo_base64: compressedFace,
+          aadhaar_front_base64: compressedFront,
+          aadhaar_back_base64: compressedBack,
         }),
       });
 

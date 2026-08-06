@@ -3,6 +3,7 @@ import Webcam from 'react-webcam';
 import { User, Phone, Mail, CreditCard, Calendar, MapPin, Camera, Upload, CheckCircle2, AlertTriangle, ArrowRight, ShieldCheck, RefreshCw, Eye, X, Building2 } from 'lucide-react';
 import ImageModal from './ImageModal';
 import { STATES_LIST, DISTRICTS_BY_STATE, DESIGNATION_LIST } from '../config/dropdownData';
+import { compressImageBase64 } from '../utils/imageCompressor';
 
 const RegistrationTab = ({ token, activeCompany, onRegistrationComplete }) => {
   const [activeStep, setActiveStep] = useState(1); // Step 1: Details, Step 2: Photo Capture
@@ -112,6 +113,10 @@ const RegistrationTab = ({ token, activeCompany, onRegistrationComplete }) => {
     setError('');
 
     try {
+      const compressedFace = await compressImageBase64(facePhoto);
+      const compressedFront = await compressImageBase64(aadhaarFront);
+      const compressedBack = await compressImageBase64(aadhaarBack);
+
       const response = await fetch('/api/register', {
         method: 'POST',
         headers: {
@@ -132,9 +137,9 @@ const RegistrationTab = ({ token, activeCompany, onRegistrationComplete }) => {
           district: district,
           designation: designation === 'Other' ? customDesignation : designation,
           project_name: projectName.trim(),
-          face_photo_base64: facePhoto,
-          aadhaar_front_base64: aadhaarFront,
-          aadhaar_back_base64: aadhaarBack,
+          face_photo_base64: compressedFace,
+          aadhaar_front_base64: compressedFront,
+          aadhaar_back_base64: compressedBack,
         }),
       });
 
