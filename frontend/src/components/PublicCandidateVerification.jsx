@@ -71,6 +71,17 @@ const PublicCandidateVerification = ({ candidateId: initialCandidateId, companyN
   const [savingDetails, setSavingDetails] = useState(false);
   const [verifiedSuccess, setVerifiedSuccess] = useState(false);
   const [maskedMobile, setMaskedMobile] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    let timer;
+    if (resendCooldown > 0) {
+      timer = setInterval(() => {
+        setResendCooldown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   useEffect(() => {
     fetchCandidateInfo();
@@ -322,6 +333,7 @@ const PublicCandidateVerification = ({ candidateId: initialCandidateId, companyN
         setMaskedMobile(data.masked_mobile);
       }
       setOtpSent(true);
+      setResendCooldown(45);
     } catch (err) {
       alert(`OTP Notice: ${err.message}`);
     } finally {
@@ -1029,13 +1041,14 @@ const PublicCandidateVerification = ({ candidateId: initialCandidateId, companyN
                           <button
                             type="button"
                             onClick={() => {
+                              if (resendCooldown > 0) return;
                               setOtpCode('');
                               handleSendOtp();
                             }}
-                            disabled={sendingOtp}
+                            disabled={sendingOtp || resendCooldown > 0}
                             className="font-extrabold text-indigo-600 hover:text-indigo-800 cursor-pointer transition-colors disabled:opacity-50"
                           >
-                            ↻ Resend Aadhaar OTP
+                            {resendCooldown > 0 ? `↻ Resend OTP in ${resendCooldown}s` : '↻ Resend Aadhaar OTP'}
                           </button>
                         </div>
                       </div>
