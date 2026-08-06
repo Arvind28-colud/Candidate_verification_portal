@@ -32,10 +32,18 @@ if mysql_url_env and mysql_url_env.startswith("mysql"):
 
 # Flag indicating if MySQL connection is active or falling back to local database
 USING_MYSQL = True
+_MYSQL_UNAVAILABLE = False
 
 def get_db_connection():
     """Attempt MySQL connection; fallback to local SQLite DB if MySQL is unreachable."""
-    global USING_MYSQL
+    global USING_MYSQL, _MYSQL_UNAVAILABLE
+
+    if _MYSQL_UNAVAILABLE:
+        USING_MYSQL = False
+        conn = sqlite3.connect("candidate_db.sqlite")
+        conn.row_factory = sqlite3.Row
+        return conn, "sqlite"
+
     try:
         connection = pymysql.connect(
             host=DB_HOST,
@@ -45,13 +53,14 @@ def get_db_connection():
             database=DB_NAME,
             charset='utf8mb4',
             cursorclass=pymysql.cursors.DictCursor,
-            connect_timeout=3
+            connect_timeout=2
         )
         USING_MYSQL = True
         return connection, "mysql"
     except Exception as e:
-        logger.warning(f"MySQL connection failed ({e}). Falling back to local SQLite database candidate_db.sqlite...")
+        logger.info(f"MySQL not available ({e}). Using local SQLite database candidate_db.sqlite.")
         USING_MYSQL = False
+        _MYSQL_UNAVAILABLE = True
         conn = sqlite3.connect("candidate_db.sqlite")
         conn.row_factory = sqlite3.Row
         return conn, "sqlite"
