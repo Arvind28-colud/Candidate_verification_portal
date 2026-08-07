@@ -40,6 +40,7 @@ const DashboardTab = ({ token, activeCompany: parentActiveCompany, initialStatus
   const [downloadingPdfId, setDownloadingPdfId] = useState(null);
   const [bulkPdfProgress, setBulkPdfProgress] = useState(false);
   const [runningFaceVerify, setRunningFaceVerify] = useState(false);
+  const [pdfOptionModal, setPdfOptionModal] = useState({ isOpen: false, type: 'single', candidate: null });
 
   const handleRunBatchFaceVerify = async () => {
     if (!window.confirm(`Run ArcFace AI facial verification on all ${candidates.length} candidates in database?`)) return;
