@@ -224,9 +224,21 @@ def serve_react_app():
 @app.get("/favicon.ico", include_in_schema=False)
 @app.get("/favicon.svg", include_in_schema=False)
 def serve_favicon():
-    for fav_path in ["frontend/dist/favicon.svg", "frontend/public/favicon.svg", "static/favicon.svg"]:
-        if os.path.exists(fav_path):
-            return FileResponse(fav_path, media_type="image/svg+xml")
+    try:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        candidates = [
+            os.path.join(base_dir, "frontend", "dist", "favicon.svg"),
+            os.path.join(base_dir, "frontend", "public", "favicon.svg"),
+            os.path.join(base_dir, "static", "favicon.svg"),
+            os.path.join(base_dir, "frontend", "dist", "favicon.ico"),
+            os.path.join(base_dir, "frontend", "public", "favicon.ico"),
+        ]
+        for fav_path in candidates:
+            if os.path.isfile(fav_path):
+                media_type = "image/svg+xml" if fav_path.endswith(".svg") else "image/x-icon"
+                return FileResponse(fav_path, media_type=media_type)
+    except Exception as e:
+        logger.warning(f"Favicon serve notice: {e}")
     return Response(status_code=204)
 
 @app.get("/health", include_in_schema=False)
