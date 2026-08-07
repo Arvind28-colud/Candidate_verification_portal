@@ -68,8 +68,9 @@ def get_db_connection():
         return conn, "sqlite"
 
 def init_db():
-    """Auto-initialize 'candidates' and 'users' tables in the database if they don't exist."""
+    """Auto-initialize 'candidates', 'users', and 'otp_logs' tables in database."""
     global USING_MYSQL, _MYSQL_UNAVAILABLE
+    conn = None
     try:
         conn, db_type = get_db_connection()
         cursor = conn.cursor()
@@ -232,53 +233,31 @@ def init_db():
 
             conn.commit()
 
+        # Seed default Super Admin user
+        _seed_default_admin(conn, db_type)
         cursor.close()
-        conn.close()
         logger.info(f"Database successfully initialized ({db_type.upper()}).")
 
-        # Run column migration checks safely
-        run_column_migrations()
-        seed_default_admin_user()
-
     except Exception as e:
-        logger.error(f"Error during init_db ({e}). Falling back to local SQLite database.")
+        logger.error(f"Error during init_db: {e}. Falling back to local SQLite database.")
         _MYSQL_UNAVAILABLE = True
         USING_MYSQL = False
         try:
             conn = sqlite3.connect("candidate_db.sqlite")
             cursor = conn.cursor()
             cursor.execute("CREATE TABLE IF NOT EXISTS candidates (id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id TEXT UNIQUE);")
+            cursor.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE);")
             conn.commit()
-            conn.close()
+            _seed_default_admin(conn, "sqlite")
+            cursor.close()
         except Exception as _sqle:
-            logger.error(f"SQLite fallback error: {_sqle}")  # Safe migrations for SQLite (existing DBs)
-            for migration_sql in [
-                "ALTER TABLE users ADD COLUMN logo_base64 TEXT",
-                "ALTER TABLE users ADD COLUMN sender_mobile TEXT",
-                "ALTER TABLE users ADD COLUMN link_enabled INTEGER DEFAULT 1",
-                "ALTER TABLE users ADD COLUMN hide_company_name INTEGER DEFAULT 0",
-                "ALTER TABLE candidates ADD COLUMN card_ocr_status TEXT DEFAULT 'PENDING'",
-                "ALTER TABLE candidates ADD COLUMN card_ocr_name TEXT",
-                "ALTER TABLE candidates ADD COLUMN reg_state TEXT",
-                "ALTER TABLE candidates ADD COLUMN reg_district TEXT",
-                "ALTER TABLE candidates ADD COLUMN reg_designation TEXT",
-                "ALTER TABLE candidates ADD COLUMN reg_project_name TEXT"
-            ]:
-                try:
-                    cursor.execute(migration_sql)
-                    conn.commit()
-                except Exception:
-                    pass  # Column already exists
-            conn.commit()
-            logger.info("SQLite fallback 'candidates' & 'users' tables verified/initialized successfully.")
-
-        # Seed default Super Admin user from .env if missing
-        _seed_default_admin(conn, db_type)
-
-    except Exception as err:
-        logger.error(f"Database initialization error: {err}")
+            logger.error(f"SQLite fallback error: {_sqle}")
     finally:
-        conn.close()
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def _seed_default_admin(conn, db_type):
