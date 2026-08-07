@@ -327,14 +327,39 @@ class SandboxService:
                         else:
                             gender = raw_gender
 
-                        photo_raw = data_obj.get("photo_link") or data_obj.get("photo") or data_obj.get("profile_image") or ""
+                        photo_raw = (
+                            data_obj.get("photo") or
+                            data_obj.get("photo_link") or
+                            data_obj.get("profile_image") or
+                            data_obj.get("image") or
+                            data_obj.get("user_photo") or
+                            data_obj.get("face_image") or
+                            data_obj.get("aadhaar_photo") or
+                            data_obj.get("photo_base64") or
+                            data_obj.get("profile_photo") or
+                            res_json.get("photo") or
+                            res_json.get("photo_link") or
+                            res_json.get("image") or ""
+                        )
                         
-                        # Ensure base64 data URI format for image tag rendering safely
-                        if isinstance(photo_raw, str) and photo_raw and not photo_raw.startswith("data:image"):
-                            photo_base64 = f"data:image/jpeg;base64,{photo_raw}"
-                        elif isinstance(photo_raw, str) and photo_raw:
-                            photo_base64 = photo_raw
-                        else:
+                        photo_base64 = ""
+                        if isinstance(photo_raw, str) and photo_raw.strip():
+                            clean_p = photo_raw.strip()
+                            if clean_p.startswith("http://") or clean_p.startswith("https://"):
+                                try:
+                                    import requests, base64
+                                    p_res = requests.get(clean_p, timeout=8)
+                                    if p_res.status_code == 200:
+                                        p_b64 = base64.b64encode(p_res.content).decode("utf-8")
+                                        photo_base64 = f"data:image/jpeg;base64,{p_b64}"
+                                except Exception as _pe:
+                                    logger.warning(f"Error fetching Sandbox photo URL: {_pe}")
+                            elif clean_p.startswith("data:image"):
+                                photo_base64 = clean_p
+                            else:
+                                photo_base64 = f"data:image/jpeg;base64,{clean_p}"
+
+                        if not photo_base64:
                             photo_base64 = SAMPLE_BASE64_PHOTO
 
                         # Clean address formatting

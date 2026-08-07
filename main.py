@@ -1697,7 +1697,7 @@ def confirm_verification(req: ConfirmVerificationRequest, user=Depends(verify_to
     v_dob = data.get("dob") or data.get("date_of_birth") or ""
     v_gender = data.get("gender") or ""
     v_address = data.get("address") or ""
-    raw_photo = data.get("photo") or candidate.get("face_photo_base64") or candidate.get("photo_base64") or ""
+    raw_photo = data.get("photo") or candidate.get("photo_base64") or ""
     v_photo = compress_image_b64(raw_photo)
 
     # Run ArcFace (buffalo_l model) automatically on live selfie vs official vault photo
@@ -2322,7 +2322,7 @@ def public_confirm_verification(req: PublicOtpConfirmRequest):
     v_dob = data.get("dob") or data.get("date_of_birth") or ""
     v_gender = data.get("gender") or ""
     v_address = data.get("address") or ""
-    raw_photo = data.get("photo") or candidate.get("face_photo_base64") or candidate.get("photo_base64") or ""
+    raw_photo = data.get("photo") or candidate.get("photo_base64") or ""
     v_photo = compress_image_b64(raw_photo)
 
     # Run ArcFace (buffalo_l model) automatically on live selfie vs official vault photo
