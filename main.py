@@ -181,9 +181,7 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Startup candidate ID re-sequence notice: {e}")
     try:
         import threading
-        from face_verifier import get_insightface_app
         threading.Thread(target=compress_existing_db_images, daemon=True).start()
-        threading.Thread(target=get_insightface_app, daemon=True).start()
     except Exception as e:
         logger.warning(f"Startup background task notice: {e}")
     yield
