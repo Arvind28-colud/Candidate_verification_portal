@@ -150,6 +150,24 @@ const DashboardTab = ({ token, activeCompany: parentActiveCompany, initialStatus
     fetchData();
   }, [selectedCompany]);
 
+  // Extract all unique Company and Project options from admin API + fetched candidates
+  const allCompanyOptions = React.useMemo(() => {
+    const map = new Map();
+    (companyList || []).forEach((c) => {
+      if (c && c.company_name) {
+        const trimmed = c.company_name.trim();
+        map.set(trimmed.toLowerCase(), trimmed);
+      }
+    });
+    (candidates || []).forEach((cand) => {
+      const cName = (cand.company_name || '').trim();
+      const pName = (cand.reg_project_name || cand.project_name || '').trim();
+      if (cName && !map.has(cName.toLowerCase())) map.set(cName.toLowerCase(), cName);
+      if (pName && !map.has(pName.toLowerCase())) map.set(pName.toLowerCase(), pName);
+    });
+    return Array.from(map.values()).sort();
+  }, [companyList, candidates]);
+
   // Extract unique Districts from candidates
   const uniqueDistricts = Array.from(
     new Set(candidates.map((c) => c.reg_district || c.district).filter((d) => d && d.trim() !== '' && d.trim() !== '-'))
@@ -162,6 +180,7 @@ const DashboardTab = ({ token, activeCompany: parentActiveCompany, initialStatus
         c.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.candidate_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.reg_project_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.phone?.includes(searchTerm) ||
         c.aadhaar_number?.includes(searchTerm);
 
@@ -220,11 +239,16 @@ const DashboardTab = ({ token, activeCompany: parentActiveCompany, initialStatus
 
   // Excel Export helper
   const handleExportExcel = () => {
-    exportCandidatesToExcel(filteredCandidates, statusFilter);
+    if (filteredCandidates.length === 0) {
+      alert('No candidates available to export.');
+      return;
+    }
+    const compLabel = selectedCompany && selectedCompany !== 'ALL' ? selectedCompany : 'Global_View';
+    exportCandidatesToExcel(filteredCandidates, compLabel, districtFilter);
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto px-2 sm:px-4">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>

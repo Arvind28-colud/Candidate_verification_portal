@@ -46,6 +46,7 @@ frontend/.vite/
 
 # Backups & Data
 candidates_backup.json
+downloaded_candidate_photos/
 
 # Operating system files
 .DS_Store

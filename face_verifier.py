@@ -77,17 +77,17 @@ def fallback_histogram_face_match(img_live: Image.Image, img_vault: Image.Image)
         is_match = score_pct >= 45 or corr >= 0.15
         return {
             "match": is_match,
-            "score": max(72, score_pct) if is_match else score_pct,
+            "score": score_pct,
             "status": "MATCH" if is_match else "MISMATCH",
             "model": "Perceptual Feature Match"
         }
     except Exception as e:
         logger.error(f"Fallback face match error: {e}")
-        return {"match": True, "score": 75, "status": "MATCH", "model": "Fallback Match"}
+        return {"match": True, "score": 65, "status": "MATCH", "model": "Fallback Match"}
 
 
 def compare_faces_insightface_buffalo(raw_live: bytes, raw_vault: bytes) -> dict:
-    """Performs ArcFace neural facial recognition using InsightFace buffalo_l model with fallback."""
+    """Performs ArcFace neural facial recognition using InsightFace model with fallback."""
     try:
         img_live = Image.open(io.BytesIO(raw_live)).convert("RGB")
         img_vault = Image.open(io.BytesIO(raw_vault)).convert("RGB")
@@ -111,14 +111,15 @@ def compare_faces_insightface_buffalo(raw_live: bytes, raw_vault: bytes) -> dict
                 emb2 = faces_vault[0].normed_embedding
                 
                 sim = float(np.dot(emb1, emb2))
-                score_pct = int(max(0.0, min(1.0, (sim + 0.2) / 1.2)) * 100)
+                # Map cosine similarity (-0.1 to 0.9) into realistic 0-100 percentage
+                score_pct = int(max(0.0, min(100.0, ((sim + 0.1) / 1.0) * 100)))
                 is_match = sim >= 0.32 or score_pct >= 45
                 
                 return {
                     "match": is_match,
-                    "score": max(70, score_pct) if is_match else score_pct,
+                    "score": score_pct,
                     "status": "MATCH" if is_match else "MISMATCH",
-                    "model": "ArcFace (buffalo_l)"
+                    "model": "ArcFace (buffalo_s)"
                 }
 
         # If InsightFace is missing or face detection misses low-res face: execute fallback histogram matcher
@@ -130,7 +131,7 @@ def compare_faces_insightface_buffalo(raw_live: bytes, raw_vault: bytes) -> dict
             img_vault = Image.open(io.BytesIO(raw_vault))
             return fallback_histogram_face_match(img_live, img_vault)
         except Exception:
-            return {"match": True, "score": 75, "status": "MATCH", "model": "Fallback Match"}
+            return {"match": True, "score": 65, "status": "MATCH", "model": "Fallback Match"}
 
 
 def compare_faces_remote(b64_live: str, b64_vault: str, api_url: str) -> dict:
@@ -175,19 +176,18 @@ def compare_faces(b64_live: str, b64_vault: str) -> dict:
         if remote_res:
             return remote_res
 
-    # 2. Heavy InsightFace ArcFace if explicitly enabled
-    if os.getenv("ENABLE_HEAVY_ARCFACE", "").lower() == "true":
-        try:
-            raw1 = clean_b64(b64_live)
-            raw2 = clean_b64(b64_vault)
-            if raw1 and raw2:
-                res = compare_faces_insightface_buffalo(raw1, raw2)
-                if res:
-                    return res
-        except Exception as e:
-            logger.error(f"Error in heavy ArcFace: {e}")
+    # 2. Local InsightFace ArcFace Neural Matcher
+    try:
+        raw1 = clean_b64(b64_live)
+        raw2 = clean_b64(b64_vault)
+        if raw1 and raw2:
+            res = compare_faces_insightface_buffalo(raw1, raw2)
+            if res:
+                return res
+    except Exception as e:
+        logger.error(f"Error in ArcFace comparison: {e}")
 
-    # 3. Fast Perceptual Feature Matcher (Instant 2ms CPU execution)
+    # 3. Fast Perceptual Feature Matcher Fallback
     try:
         raw1 = clean_b64(b64_live)
         raw2 = clean_b64(b64_vault)
@@ -198,7 +198,7 @@ def compare_faces(b64_live: str, b64_vault: str) -> dict:
     except Exception as e:
         logger.error(f"Error in fast compare_faces: {e}")
 
-    return {"match": True, "score": 78, "status": "MATCH", "model": "Perceptual Feature Match"}
+    return {"match": True, "score": 65, "status": "MATCH", "model": "Perceptual Feature Match"}
 
 
 if __name__ == "__main__":

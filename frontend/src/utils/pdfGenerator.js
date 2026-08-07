@@ -437,8 +437,28 @@ export const downloadBulkPdfsZip = async (candidatesList = [], companyName = '',
 
     if (res.ok) {
       const zipBlob = await res.blob();
-      const distLabel = districtName && districtName !== 'ALL' ? `${districtName.trim().replace(/\s+/g, '_')}_` : 'All_Districts_';
-      const zipFileName = `${distLabel}Candidate_Verification_Reports_${new Date().toISOString().slice(0, 10)}.zip`;
+
+      // Check header filename or generate District / Company / Global wise label
+      let zipFileName = '';
+      const headerDisp = res.headers.get('Content-Disposition');
+      if (headerDisp && headerDisp.includes('filename=')) {
+        const match = headerDisp.match(/filename=["']?([^"';]+)["']?/);
+        if (match && match[1]) zipFileName = match[1];
+      }
+
+      if (!zipFileName) {
+        const hasDistrict = districtName && districtName.trim() && districtName.trim().toUpperCase() !== 'ALL';
+        const hasCompany = companyName && companyName.trim() && companyName.trim().toUpperCase() !== 'ALL';
+
+        const parts = [];
+        if (hasDistrict) parts.push(districtName.trim().replace(/[^a-zA-Z0-9]/g, '_'));
+        if (hasCompany) parts.push(companyName.trim().replace(/[^a-zA-Z0-9]/g, '_'));
+        if (!hasDistrict && !hasCompany) parts.push('Global_View');
+
+        const label = parts.join('_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+        const dateStr = new Date().toISOString().slice(0, 10);
+        zipFileName = `${label}_Candidate_Verification_Reports_${dateStr}.zip`;
+      }
 
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');

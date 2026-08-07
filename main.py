@@ -120,7 +120,7 @@ def compress_existing_db_images():
         logger.warning(f"Database image auto-compression notice: {e}")
 
 def reverify_existing_candidate_faces():
-    """Auto-corrects face match status for existing candidates in database using fast perceptual matcher."""
+    """Auto-corrects face match status & scores for existing candidates in database using ArcFace AI neural matcher."""
     try:
         rows = execute_query(
             "SELECT candidate_id, face_photo_base64, photo_base64, face_match_status, verification_status FROM candidates",
@@ -134,17 +134,11 @@ def reverify_existing_candidate_faces():
             cid = c.get("candidate_id")
             live = c.get("face_photo_base64")
             vault = c.get("photo_base64")
-            status = c.get("face_match_status")
-            v_status = c.get("verification_status")
             
             if live and vault:
                 face_res = compare_faces(live, vault)
                 new_status = face_res.get("status", "MATCH")
-                new_score = face_res.get("score", 85)
-                
-                if (v_status == "VERIFIED" or status in ["MISMATCH", "UNVERIFIED", None, "FAILED"]) and new_status == "MISMATCH":
-                    new_status = "MATCH"
-                    new_score = max(78, new_score)
+                new_score = face_res.get("score", 0)
                     
                 execute_query(
                     "UPDATE candidates SET face_match_status = %s, face_match_score = %s WHERE candidate_id = %s",
@@ -153,7 +147,7 @@ def reverify_existing_candidate_faces():
                 updated += 1
                 
         if updated > 0:
-            logger.info(f"[Face Optimizer] Auto-corrected facial match status for {updated} candidates in database.")
+            logger.info(f"[Face Optimizer] Updated ArcFace facial match status & real scores for {updated} candidates in database.")
     except Exception as e:
         logger.warning(f"Face reverification notice: {e}")
 
@@ -522,24 +516,26 @@ def create_company(req: CompanyCreateRequest, user=Depends(verify_token)):
 
 @app.get("/api/admin/companies")
 def list_companies(user=Depends(verify_token)):
-    """Super Admin: List all created companies with candidate stats and link status."""
+    """Super Admin: List all created companies & registered project names with candidate stats and link status."""
     if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Access denied. Super Admin privileges required.")
 
     users = execute_query(
         "SELECT id, username, display_name, role, company_name, logo_base64, sender_mobile, link_enabled, hide_company_name, company_token, created_at FROM users WHERE role = 'company_admin' AND role != 'admin' ORDER BY id DESC",
         fetch_all=True
-    )
+    ) or []
 
     comp_stats = execute_query(
         "SELECT company_name, COUNT(*) as total_candidates, SUM(CASE WHEN verification_status = 'VERIFIED' THEN 1 ELSE 0 END) as verified_candidates, SUM(CASE WHEN verification_status = 'FAILED' THEN 1 ELSE 0 END) as failed_candidates FROM candidates GROUP BY company_name",
         fetch_all=True
-    )
+    ) or []
     stats_map = {row["company_name"]: row for row in comp_stats} if comp_stats else {}
 
+    existing_comp_names = set()
     result = []
     for u in users:
         c_name = u.get("company_name") or "Unknown"
+        existing_comp_names.add(c_name.strip().lower())
         s = stats_map.get(c_name, {})
         link_status = u.get("link_enabled")
         is_enabled = True if link_status is None or int(link_status) == 1 else False
@@ -554,11 +550,56 @@ def list_companies(user=Depends(verify_token)):
             "link_enabled": is_enabled,
             "hide_company_name": hide_comp,
             "company_token": u.get("company_token") or "",
-            "total_candidates": s.get("total_candidates", 0),
-            "verified_candidates": s.get("verified_candidates", 0),
-            "failed_candidates": s.get("failed_candidates", 0),
+            "total_candidates": int(s.get("total_candidates", 0) or 0),
+            "verified_candidates": int(s.get("verified_candidates", 0) or 0),
+            "failed_candidates": int(s.get("failed_candidates", 0) or 0),
             "created_at": u.get("created_at")
         })
+
+    # Also extract all unique company_name AND reg_project_name values from candidates table
+    cand_comp_rows = execute_query(
+        "SELECT DISTINCT company_name FROM candidates WHERE company_name IS NOT NULL AND TRIM(company_name) != ''",
+        fetch_all=True
+    ) or []
+    cand_proj_rows = execute_query(
+        "SELECT DISTINCT reg_project_name FROM candidates WHERE reg_project_name IS NOT NULL AND TRIM(reg_project_name) != ''",
+        fetch_all=True
+    ) or []
+
+    extra_names = set()
+    for row in cand_comp_rows:
+        name = (row.get("company_name") or "").strip()
+        if name and name.lower() not in existing_comp_names:
+            extra_names.add(name)
+    for row in cand_proj_rows:
+        name = (row.get("reg_project_name") or "").strip()
+        if name and name.lower() not in existing_comp_names:
+            extra_names.add(name)
+
+    virtual_id = -1
+    for name in sorted(extra_names):
+        s = execute_query(
+            "SELECT COUNT(*) as total_candidates, SUM(CASE WHEN verification_status = 'VERIFIED' THEN 1 ELSE 0 END) as verified_candidates, SUM(CASE WHEN verification_status = 'FAILED' THEN 1 ELSE 0 END) as failed_candidates FROM candidates WHERE LOWER(TRIM(company_name)) = LOWER(TRIM(%s)) OR LOWER(TRIM(reg_project_name)) = LOWER(TRIM(%s))",
+            (name, name),
+            fetch_one=True
+        ) or {}
+
+        result.append({
+            "id": virtual_id,
+            "username": f"project_{abs(virtual_id)}",
+            "display_name": name,
+            "company_name": name,
+            "logo_base64": "",
+            "sender_mobile": "",
+            "link_enabled": True,
+            "hide_company_name": False,
+            "company_token": "",
+            "total_candidates": int(s.get("total_candidates", 0) or 0),
+            "verified_candidates": int(s.get("verified_candidates", 0) or 0),
+            "failed_candidates": int(s.get("failed_candidates", 0) or 0),
+            "created_at": None
+        })
+        virtual_id -= 1
 
     return {"success": True, "count": len(result), "companies": result}
 
@@ -797,19 +838,21 @@ def download_candidate_report(candidate_id: str, company: Optional[str] = None, 
 
 @app.get("/api/candidates/download-bulk-zip")
 def download_bulk_reports(company: Optional[str] = None, district: Optional[str] = None, include_page2: bool = False, user=Depends(verify_token)):
-    """Backend-generated ZIP containing PDF reports for filtered candidates."""
+    """Backend-generated ZIP containing PDF reports for filtered candidates (District-wise, Company-wise, or Global View)."""
     from fastapi.responses import Response
+    import re
+
     target_company = user.get("company_name") if (user and user.get("role") != "admin") else company
     
     sql = "SELECT * FROM candidates WHERE 1=1"
     params = []
     
-    if target_company and target_company != "ALL":
-        sql += " AND LOWER(company_name) = LOWER(%s)"
-        params.append(target_company)
+    if target_company and target_company.strip() and target_company.strip().upper() != "ALL":
+        sql += " AND (LOWER(TRIM(company_name)) = LOWER(TRIM(%s)) OR LOWER(TRIM(reg_project_name)) = LOWER(TRIM(%s)))"
+        params.extend([target_company, target_company])
     
-    if district and district != "ALL":
-        sql += " AND (LOWER(reg_district) = LOWER(%s) OR LOWER(district) = LOWER(%s))"
+    if district and district.strip() and district.strip().upper() != "ALL":
+        sql += " AND (LOWER(TRIM(reg_district)) = LOWER(TRIM(%s)) OR LOWER(TRIM(district)) = LOWER(TRIM(%s)))"
         params.extend([district, district])
         
     candidates = execute_query(sql, tuple(params), fetch_all=True)
@@ -819,8 +862,19 @@ def download_bulk_reports(company: Optional[str] = None, district: Optional[str]
 
     zip_bytes = generate_bulk_pdfs_zip_bytes(candidates, company_name=target_company or "", district_name=district or "ALL", include_page2=include_page2)
 
-    dist_label = district.strip().replace(" ", "_") if (district and district != "ALL") else "All_Districts"
-    zip_filename = f"{dist_label}_Candidate_Verification_Reports_{datetime.now().strftime('%Y-%m-%d')}.zip"
+    has_district = district and district.strip() and district.strip().upper() != "ALL"
+    has_company = target_company and target_company.strip() and target_company.strip().upper() != "ALL"
+
+    fn_parts = []
+    if has_district:
+        fn_parts.append(re.sub(r'[^a-zA-Z0-9]', '_', district.strip()))
+    if has_company:
+        fn_parts.append(re.sub(r'[^a-zA-Z0-9]', '_', target_company.strip()))
+    if not has_district and not has_company:
+        fn_parts.append("Global_View")
+
+    clean_label = re.sub(r'_+', '_', "_".join(fn_parts)).strip('_')
+    zip_filename = f"{clean_label}_Candidate_Verification_Reports_{datetime.now().strftime('%Y-%m-%d')}.zip"
     
     return Response(
         content=zip_bytes,
@@ -1878,8 +1932,8 @@ def list_candidates(company: Optional[str] = None, user=Depends(verify_token)):
     
     if target_company and target_company != "ALL":
         candidates = execute_query(
-            f"SELECT {LIGHT_CANDIDATE_FIELDS} FROM candidates WHERE LOWER(TRIM(company_name)) = LOWER(TRIM(%s)) ORDER BY id DESC",
-            (target_company,),
+            f"SELECT {LIGHT_CANDIDATE_FIELDS} FROM candidates WHERE LOWER(TRIM(company_name)) = LOWER(TRIM(%s)) OR LOWER(TRIM(reg_project_name)) = LOWER(TRIM(%s)) ORDER BY id DESC",
+            (target_company, target_company),
             fetch_all=True
         )
     else:
