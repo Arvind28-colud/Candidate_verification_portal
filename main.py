@@ -52,12 +52,12 @@ from pdf_backend import generate_candidate_pdf_bytes, generate_bulk_pdfs_zip_byt
 
 logger = logging.getLogger("main")
 
-def compress_image_b64(b64_str: str, max_size=(640, 640), quality=75) -> str:
-    """Compresses heavy Base64 image to 640x640 JPEG (~50-80KB) instantly."""
+def compress_image_b64(b64_str: str, max_size=(550, 550), quality=70) -> str:
+    """Compresses heavy Base64 image to 550x550 JPEG (~30-50KB) instantly for lightning-fast network transport."""
     if not b64_str or len(b64_str) < 100:
         return b64_str or ""
-    # If image base64 is already small (<120KB), return as-is for maximum speed
-    if len(b64_str) < 120000 and "image/jpeg" in b64_str:
+    # If image base64 is already small (<60KB JPEG), return as-is
+    if len(b64_str) < 60000 and "image/jpeg" in b64_str:
         return b64_str
     try:
         from PIL import Image
@@ -69,7 +69,7 @@ def compress_image_b64(b64_str: str, max_size=(640, 640), quality=75) -> str:
         img.thumbnail(max_size, Image.Resampling.BILINEAR)
         
         out_buf = io.BytesIO()
-        img.save(out_buf, format="JPEG", quality=quality)
+        img.save(out_buf, format="JPEG", quality=quality, optimize=True)
         compressed_b64 = base64.b64encode(out_buf.getvalue()).decode("utf-8")
         return f"data:image/jpeg;base64,{compressed_b64}"
     except Exception as e:
@@ -77,7 +77,7 @@ def compress_image_b64(b64_str: str, max_size=(640, 640), quality=75) -> str:
         return b64_str
 
 def compress_existing_db_images():
-    """Scans DB and automatically compresses existing heavy candidate photos (>150KB) to 640x640 JPEG (~50KB) for instant report loading."""
+    """Scans DB and automatically compresses existing heavy candidate photos (>75KB) to 550x550 JPEG (~30KB) for instant report loading."""
     try:
         rows = execute_query(
             "SELECT id, candidate_id, face_photo_base64, aadhaar_front_base64, aadhaar_back_base64, photo_base64 FROM candidates",
@@ -94,23 +94,23 @@ def compress_existing_db_images():
             c_back = r.get("aadhaar_back_base64") or ""
             c_photo = r.get("photo_base64") or ""
             
-            # Check if any photo is uncompressed (> 150KB base64 string)
+            # Check if any photo is uncompressed (> 75KB base64 string)
             needs_update = False
             new_face = c_face
             new_front = c_front
             new_back = c_back
             new_photo = c_photo
             
-            if len(c_face) > 150000:
+            if len(c_face) > 75000:
                 new_face = compress_image_b64(c_face)
                 needs_update = True
-            if len(c_front) > 150000:
+            if len(c_front) > 75000:
                 new_front = compress_image_b64(c_front)
                 needs_update = True
-            if len(c_back) > 150000:
+            if len(c_back) > 75000:
                 new_back = compress_image_b64(c_back)
                 needs_update = True
-            if len(c_photo) > 150000:
+            if len(c_photo) > 75000:
                 new_photo = compress_image_b64(c_photo)
                 needs_update = True
                 
