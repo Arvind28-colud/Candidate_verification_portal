@@ -239,6 +239,18 @@ class SandboxService:
                     "x-api-version": "1.0",
                     "Content-Type": "application/json"
                 }
+
+                try:
+                    ref_id = int(str(client_id).strip())
+                except Exception:
+                    ref_id = str(client_id).strip()
+
+                payload = {
+                    "@entity": "in.co.sandbox.kyc.aadhaar.okyc.otp.verify",
+                    "reference_id": ref_id,
+                    "otp": str(otp).strip()
+                }
+
                 # Try Primary OKYC Verify Endpoint first, then Fallback V2 Verify Endpoint on attempt 2
                 endpoint_url = f"{SANDBOX_BASE_URL}/kyc/aadhaar/okyc/otp/verify" if attempt == 1 else f"{SANDBOX_BASE_URL}/kyc/aadhaar/v2/otp/verify"
                 if attempt > 1:
