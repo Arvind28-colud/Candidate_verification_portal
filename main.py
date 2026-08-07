@@ -37,6 +37,7 @@ except ImportError:
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, Depends
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
@@ -1900,7 +1901,7 @@ def get_candidates_photos_batch(company: Optional[str] = None, user=Depends(veri
         
     rows = execute_query(sql, params, fetch_all=True)
     return JSONResponse(
-        content={"success": True, "photos": rows or []},
+        content=jsonable_encoder({"success": True, "photos": rows or []}),
         headers={"Cache-Control": "private, max-age=1800"}
     )
 
@@ -1944,7 +1945,7 @@ def get_candidate(candidate_id: str, company: Optional[str] = None, user=Depends
 
     attach_company_logos([candidate])
     return JSONResponse(
-        content={"success": True, "candidate": candidate},
+        content=jsonable_encoder({"success": True, "candidate": candidate}),
         headers={"Cache-Control": "private, max-age=1800"}
     )
 
