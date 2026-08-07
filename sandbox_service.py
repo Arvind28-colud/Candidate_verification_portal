@@ -126,10 +126,8 @@ class SandboxService:
                     "reason": "Candidate Aadhaar e-KYC Verification"
                 }
 
-                # Try Primary OKYC Endpoint first, then Fallback V2 Endpoint on attempt 2
-                endpoint_url = f"{SANDBOX_BASE_URL}/kyc/aadhaar/okyc/otp" if attempt == 1 else f"{SANDBOX_BASE_URL}/kyc/aadhaar/v2/otp"
-                if attempt > 1:
-                    payload["@entity"] = "in.co.sandbox.kyc.aadhaar.v2.otp.request"
+                # Primary OKYC OTP Endpoint
+                endpoint_url = f"{SANDBOX_BASE_URL}/kyc/aadhaar/okyc/otp"
 
                 SandboxService._rate_limit_stagger()
 
@@ -250,9 +248,6 @@ class SandboxService:
 
                 # Primary OKYC Verify Endpoint
                 endpoint_url = f"{SANDBOX_BASE_URL}/kyc/aadhaar/okyc/otp/verify"
-                if attempt > 1:
-                    payload["@entity"] = "in.co.sandbox.kyc.aadhaar.v2.request"
-                    endpoint_url = f"{SANDBOX_BASE_URL}/kyc/aadhaar/v2/otp/verify"
 
                 SandboxService._rate_limit_stagger()
 

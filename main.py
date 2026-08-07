@@ -24,16 +24,8 @@ mimetypes.add_type("application/javascript", ".jsx")
 mimetypes.add_type("text/css", ".css")
 mimetypes.add_type("image/svg+xml", ".svg")
 
-# Optional OCR dependencies (graceful fallback if not installed)
-try:
-    from PIL import Image
-    import pytesseract
-    tesseract_bin = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-    if os.path.exists(tesseract_bin):
-        pytesseract.pytesseract.tesseract_cmd = tesseract_bin
-    HAS_OCR = True
-except ImportError:
-    HAS_OCR = False
+# OCR reading disabled completely for maximum application speed & zero latency
+HAS_OCR = False
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, Depends
