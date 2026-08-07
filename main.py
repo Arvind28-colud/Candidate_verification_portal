@@ -165,7 +165,7 @@ def log_otp_event(candidate_id: str, company_name: str, candidate_name: str, aad
         clean_phone = str(phone or "")
         masked_phone = f"XXXXXX-{clean_phone[-4:]}" if len(clean_phone) >= 4 else clean_phone
         
-        ist_now = datetime.now(timezone(timedelta(hours=5, minutes=30))).strftime("%Y-%m-%d %H:%M:%S")
+        utc_now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         sql = """
             INSERT INTO otp_logs 
             (candidate_id, company_name, candidate_name, aadhaar_number, phone, event_type, status, message, client_id, created_at)
@@ -181,7 +181,7 @@ def log_otp_event(candidate_id: str, company_name: str, candidate_name: str, aad
             status,
             message or "",
             client_id or "",
-            ist_now
+            utc_now
         ))
     except Exception as e:
         logger.warning(f"Error logging OTP event: {e}")
@@ -757,7 +757,7 @@ def get_company_info(company: str):
     }
 
 @app.get("/api/candidates/download-pdf/{candidate_id}")
-def download_candidate_report(candidate_id: str, company: Optional[str] = None, user=Depends(verify_token)):
+def download_candidate_report(candidate_id: str, company: Optional[str] = None, include_page2: bool = False, user=Depends(verify_token)):
     """Backend-generated PDF report for a single candidate."""
     from fastapi.responses import Response
     sql = "SELECT * FROM candidates WHERE (candidate_id = %s OR id = %s)"
@@ -775,7 +775,7 @@ def download_candidate_report(candidate_id: str, company: Optional[str] = None, 
         raise HTTPException(status_code=404, detail="Candidate not found.")
 
     comp_name = candidate.get("company_name") or company or ""
-    pdf_bytes = generate_candidate_pdf_bytes(candidate, company_name=comp_name)
+    pdf_bytes = generate_candidate_pdf_bytes(candidate, company_name=comp_name, include_page2=include_page2)
     
     import re
     clean_name = re.sub(r'[^a-zA-Z0-9]', '_', (candidate.get("full_name") or candidate.get("verified_name") or "Candidate").strip())
@@ -796,7 +796,7 @@ def download_candidate_report(candidate_id: str, company: Optional[str] = None, 
     )
 
 @app.get("/api/candidates/download-bulk-zip")
-def download_bulk_reports(company: Optional[str] = None, district: Optional[str] = None, user=Depends(verify_token)):
+def download_bulk_reports(company: Optional[str] = None, district: Optional[str] = None, include_page2: bool = False, user=Depends(verify_token)):
     """Backend-generated ZIP containing PDF reports for filtered candidates."""
     from fastapi.responses import Response
     target_company = user.get("company_name") if (user and user.get("role") != "admin") else company
@@ -817,7 +817,7 @@ def download_bulk_reports(company: Optional[str] = None, district: Optional[str]
     if not candidates:
         raise HTTPException(status_code=404, detail="No candidates found matching the selected filters.")
 
-    zip_bytes = generate_bulk_pdfs_zip_bytes(candidates, company_name=target_company or "", district_name=district or "ALL")
+    zip_bytes = generate_bulk_pdfs_zip_bytes(candidates, company_name=target_company or "", district_name=district or "ALL", include_page2=include_page2)
 
     dist_label = district.strip().replace(" ", "_") if (district and district != "ALL") else "All_Districts"
     zip_filename = f"{dist_label}_Candidate_Verification_Reports_{datetime.now().strftime('%Y-%m-%d')}.zip"
@@ -2576,11 +2576,12 @@ def get_otp_analytics(user=Depends(verify_token)):
         ist_tz = timezone(timedelta(hours=5, minutes=30))
         for r in raw_logs:
             created_raw = r.get("created_at")
-            created_str = ""
+            created_str = "—"
             if created_raw:
                 try:
                     if isinstance(created_raw, str):
-                        dt = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
+                        clean_str = str(created_raw).replace("T", " ").replace("Z", "").split(".")[0]
+                        dt = datetime.strptime(clean_str, "%Y-%m-%d %H:%M:%S")
                     else:
                         dt = created_raw
                     if dt.tzinfo is None:

@@ -19,6 +19,7 @@ import {
 import { exportCandidatesToExcel } from '../utils/excelExporter';
 import { downloadCandidatePdf, downloadBulkPdfsZip } from '../utils/pdfGenerator';
 import { fetchAndCacheCandidate, preloadAllCandidatePhotos } from '../utils/candidateCache';
+import PdfDownloadOptionModal from './PdfDownloadOptionModal';
 
 const DashboardTab = ({ token, activeCompany: parentActiveCompany, initialStatusFilter = 'ALL', onNavigateToReg, onOpenVerifyModal, onOpenCompareModal }) => {
   const [user] = useState(() => {
@@ -180,55 +181,40 @@ const DashboardTab = ({ token, activeCompany: parentActiveCompany, initialStatus
     });
 
   // Single Candidate PDF Download helper
-  const handleDownloadSinglePdf = async (cand) => {
-    setDownloadingPdfId(cand.candidate_id);
-    try {
-      let fullCand = cand;
-      if (!cand.photo_base64 && !cand.face_photo_base64) {
-        const compParam = cand.company_name ? `?company=${encodeURIComponent(cand.company_name)}` : '';
-        const res = await fetch(`/api/candidate/${cand.candidate_id}${compParam}`, { headers: authHeaders() });
-        const data = await res.json();
-        if (data.success && data.candidate) {
-          fullCand = data.candidate;
-        }
-      }
-      await downloadCandidatePdf(fullCand, selectedCompany, token);
-    } catch (err) {
-      alert(`PDF Download Error: ${err.message}`);
-    } finally {
-      setDownloadingPdfId(null);
-    }
+  const handleDownloadSinglePdf = (cand) => {
+    setPdfOptionModal({ isOpen: true, type: 'single', candidate: cand });
   };
 
   // Bulk PDF Download packaged into a single ZIP file
-  const handleBulkPdfDownload = async () => {
+  const handleBulkPdfDownload = () => {
     if (filteredCandidates.length === 0) {
       alert('No candidates available to download PDFs.');
       return;
     }
+    setPdfOptionModal({ isOpen: true, type: 'bulk', candidate: null });
+  };
 
-    setBulkPdfProgress(true);
-    const fullCandidates = [];
-
-    for (const cand of filteredCandidates) {
-      let fullCand = cand;
-      if (!cand.photo_base64 && !cand.face_photo_base64) {
-        try {
-          const compParam = cand.company_name ? `?company=${encodeURIComponent(cand.company_name)}` : '';
-          const res = await fetch(`/api/candidate/${cand.candidate_id}${compParam}`, { headers: authHeaders() });
-          const data = await res.json();
-          if (data.success && data.candidate) {
-            fullCand = data.candidate;
-          }
-        } catch (e) {
-          console.error(`Error fetching candidate ${cand.candidate_id}:`, e);
-        }
+  const handleConfirmDownloadOption = async ({ includePage2 }) => {
+    if (pdfOptionModal.type === 'single' && pdfOptionModal.candidate) {
+      const cand = pdfOptionModal.candidate;
+      setDownloadingPdfId(cand.candidate_id);
+      try {
+        await downloadCandidatePdf(cand, selectedCompany, token, includePage2);
+      } catch (err) {
+        alert(`PDF Download Error: ${err.message}`);
+      } finally {
+        setDownloadingPdfId(null);
       }
-      fullCandidates.push(fullCand);
+    } else if (pdfOptionModal.type === 'bulk') {
+      setBulkPdfProgress(true);
+      try {
+        await downloadBulkPdfsZip(filteredCandidates, selectedCompany, () => {}, districtFilter, token, includePage2);
+      } catch (err) {
+        alert(`ZIP Download Error: ${err.message}`);
+      } finally {
+        setBulkPdfProgress(false);
+      }
     }
-
-    await downloadBulkPdfsZip(fullCandidates, selectedCompany, () => {}, districtFilter, token);
-    setBulkPdfProgress(false);
   };
 
   // Excel Export helper
@@ -584,6 +570,15 @@ const DashboardTab = ({ token, activeCompany: parentActiveCompany, initialStatus
           </table>
         </div>
       </div>
+
+      {/* PDF DOWNLOAD OPTIONS POPUP MODAL */}
+      <PdfDownloadOptionModal
+        isOpen={pdfOptionModal.isOpen}
+        title={pdfOptionModal.type === 'bulk' ? 'Bulk PDF Zip Download Options' : 'PDF Report Download Options'}
+        subtitle={pdfOptionModal.type === 'bulk' ? 'Select report page options for downloading all candidate PDFs as a ZIP package' : 'Select report page options before downloading PDF'}
+        onConfirm={handleConfirmDownloadOption}
+        onClose={() => setPdfOptionModal({ isOpen: false, type: 'single', candidate: null })}
+      />
     </div>
   );
 };

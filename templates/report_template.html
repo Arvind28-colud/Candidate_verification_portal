@@ -384,12 +384,13 @@
       <table class="footer-table">
         <tr>
           <td style="text-align: left;">{{ company_header }} &bull; Verification Report ({{ candidate_id }})</td>
-          <td style="text-align: right;">Page 1 of 2</td>
+          <td style="text-align: right;">Page 1 of {% if include_page2 %}2{% else %}1{% endif %}</td>
         </tr>
       </table>
     </div>
   </div>
 
+  {% if include_page2 %}
   <!-- ================= PAGE 2 ================= -->
   <div class="page">
     <div class="page-content">
@@ -446,6 +447,7 @@
       </table>
     </div>
   </div>
+  {% endif %}
 
 </body>
 

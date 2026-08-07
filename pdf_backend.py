@@ -46,7 +46,7 @@ def format_clean_name(name_str, fallback="-"):
     return cleaned or fallback
 
 
-def build_candidate_report_html(candidate, company_name=""):
+def build_candidate_report_html(candidate, company_name="", include_page2=False):
     current_company_name = candidate.get("company_name") or company_name or "Candidate Verification Portal"
     is_verified = candidate.get("verification_status") == "VERIFIED"
     is_failed = candidate.get("verification_status") == "FAILED" or candidate.get("face_match_status") == "MISMATCH"
@@ -140,6 +140,7 @@ def build_candidate_report_html(candidate, company_name=""):
     template = env.get_template("report_template.html")
 
     render_data = {
+        "include_page2": include_page2,
         "company_header": current_company_name,
         "candidate_id": str(candidate.get("candidate_id") or candidate.get("id") or "-"),
         "verification_status": status_badge,
@@ -176,8 +177,8 @@ def build_candidate_report_html(candidate, company_name=""):
     return template.render(**render_data)
 
 
-def generate_candidate_pdf_bytes(candidate_data, company_name=""):
-    html_content = build_candidate_report_html(candidate_data, company_name)
+def generate_candidate_pdf_bytes(candidate_data, company_name="", include_page2=False):
+    html_content = build_candidate_report_html(candidate_data, company_name, include_page2=include_page2)
     if HAS_WEASYPRINT:
         return HTML(string=html_content).write_pdf()
     
@@ -189,7 +190,7 @@ def generate_candidate_pdf_bytes(candidate_data, company_name=""):
     raise RuntimeError("No PDF generation engine (WeasyPrint / xhtml2pdf) available.")
 
 
-def generate_bulk_pdfs_zip_bytes(candidates_list, company_name="", district_name="ALL"):
+def generate_bulk_pdfs_zip_bytes(candidates_list, company_name="", district_name="ALL", include_page2=False):
     zip_buffer = io.BytesIO()
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
@@ -204,9 +205,10 @@ def generate_bulk_pdfs_zip_bytes(candidates_list, company_name="", district_name
                 if clean_aadhaar:
                     parts.append(clean_aadhaar)
                 filename = f"{'_'.join(parts)}.pdf"
-                pdf_bytes = generate_candidate_pdf_bytes(cand, company_name)
+                pdf_bytes = generate_candidate_pdf_bytes(cand, company_name, include_page2=include_page2)
                 zip_file.writestr(filename, pdf_bytes)
             except Exception as e:
                 print(f"Error adding candidate {cand.get('candidate_id')} to ZIP: {e}")
 
+    zip_buffer.seek(0)
     return zip_buffer.getvalue()

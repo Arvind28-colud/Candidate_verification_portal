@@ -8,7 +8,7 @@ const formatCleanName = (str, fallback = '-') => {
   return cleaned || fallback;
 };
 
-export const buildCandidateReportHtml = (candidate, companyName = '') => {
+export const buildCandidateReportHtml = (candidate, companyName = '', includePage2 = false) => {
   const currentCompanyName = candidate.company_name || companyName || 'Candidate Verification Portal';
   const isVerified = candidate.verification_status === 'VERIFIED';
   const isFailed = candidate.verification_status === 'FAILED' || candidate.face_match_status === 'MISMATCH';
@@ -240,10 +240,11 @@ export const buildCandidateReportHtml = (candidate, companyName = '') => {
         <!-- PAGE 1 FOOTER -->
         <div style="padding-top: 6px; border-top: 1px solid #000000; display: flex; justify-content: space-between; align-items: center; font-size: 9px; font-family: 'Courier New', monospace; color: #000000; margin-top: 6px;">
           <span>${currentCompanyName} &bull; Candidate Verification Report (${candidate.candidate_id || '-'})</span>
-          <span style="font-weight: bold;">Page 1 of 2</span>
+          <span style="font-weight: bold;">Page 1 of ${includePage2 ? '2' : '1'}</span>
         </div>
       </div>
 
+      ${includePage2 ? `
       <!-- HARD PAGE BREAK -->
       <div class="pdf-page-break" style="page-break-before: always; clear: both; height: 0; margin: 0; padding: 0;"></div>
 
@@ -319,6 +320,7 @@ export const buildCandidateReportHtml = (candidate, companyName = '') => {
           </div>
         </div>
       </div>
+      ` : ''}
 
     </div>
   `;
@@ -391,7 +393,7 @@ export const generatePdfFilename = (candidate) => {
   return `${parts.join('_')}.pdf`;
 };
 
-export const downloadCandidatePdf = async (candidate, companyName = '', token = '') => {
+export const downloadCandidatePdf = async (candidate, companyName = '', token = '', includePage2 = false) => {
   if (!candidate) return;
 
   const targetId = candidate.candidate_id || candidate.id;
@@ -400,7 +402,7 @@ export const downloadCandidatePdf = async (candidate, companyName = '', token = 
 
   try {
     const queryComp = encodeURIComponent(candidate.company_name || companyName || '');
-    const res = await fetch(`/api/candidates/download-pdf/${targetId}?company=${queryComp}`, {
+    const res = await fetch(`/api/candidates/download-pdf/${targetId}?company=${queryComp}&include_page2=${includePage2 ? 'true' : 'false'}`, {
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
     });
 
@@ -421,7 +423,7 @@ export const downloadCandidatePdf = async (candidate, companyName = '', token = 
   }
 };
 
-export const downloadBulkPdfsZip = async (candidatesList = [], companyName = '', onProgress = () => { }, districtName = 'ALL', token = '') => {
+export const downloadBulkPdfsZip = async (candidatesList = [], companyName = '', onProgress = () => { }, districtName = 'ALL', token = '', includePage2 = false) => {
   const authToken = token || sessionStorage.getItem('token') || '';
 
   try {
@@ -429,7 +431,7 @@ export const downloadBulkPdfsZip = async (candidatesList = [], companyName = '',
     const compParam = encodeURIComponent(companyName || 'ALL');
     const distParam = encodeURIComponent(districtName || 'ALL');
 
-    const res = await fetch(`/api/candidates/download-bulk-zip?company=${compParam}&district=${distParam}`, {
+    const res = await fetch(`/api/candidates/download-bulk-zip?company=${compParam}&district=${distParam}&include_page2=${includePage2 ? 'true' : 'false'}`, {
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
     });
 
