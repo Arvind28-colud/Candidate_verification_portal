@@ -116,6 +116,9 @@ def compress_existing_db_images():
                 
         if updated_count > 0:
             logger.info(f"[Image Optimizer] Auto-compressed photos for {updated_count} existing candidate records in database.")
+    except Exception as e:
+        logger.warning(f"Database image auto-compression notice: {e}")
+
 def reverify_existing_candidate_faces():
     """Auto-corrects face match status for existing candidates in database using fast perceptual matcher."""
     try:
@@ -162,10 +165,11 @@ def log_otp_event(candidate_id: str, company_name: str, candidate_name: str, aad
         clean_phone = str(phone or "")
         masked_phone = f"XXXXXX-{clean_phone[-4:]}" if len(clean_phone) >= 4 else clean_phone
         
+        ist_now = datetime.now(timezone(timedelta(hours=5, minutes=30))).strftime("%Y-%m-%d %H:%M:%S")
         sql = """
             INSERT INTO otp_logs 
-            (candidate_id, company_name, candidate_name, aadhaar_number, phone, event_type, status, message, client_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (candidate_id, company_name, candidate_name, aadhaar_number, phone, event_type, status, message, client_id, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         execute_query(sql, (
             candidate_id or "",
@@ -176,7 +180,8 @@ def log_otp_event(candidate_id: str, company_name: str, candidate_name: str, aad
             event_type,
             status,
             message or "",
-            client_id or ""
+            client_id or "",
+            ist_now
         ))
     except Exception as e:
         logger.warning(f"Error logging OTP event: {e}")
@@ -2568,8 +2573,22 @@ def get_otp_analytics(user=Depends(verify_token)):
         raw_logs = execute_query(sql_logs, tuple(params), fetch_all=True) or []
         
         formatted_logs = []
+        ist_tz = timezone(timedelta(hours=5, minutes=30))
         for r in raw_logs:
-            created = str(r.get("created_at") or "")
+            created_raw = r.get("created_at")
+            created_str = ""
+            if created_raw:
+                try:
+                    if isinstance(created_raw, str):
+                        dt = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
+                    else:
+                        dt = created_raw
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    ist_dt = dt.astimezone(ist_tz)
+                    created_str = ist_dt.strftime("%d %b %Y, %I:%M:%S %p IST")
+                except Exception:
+                    created_str = str(created_raw)
             formatted_logs.append({
                 "id": r.get("id"),
                 "candidate_id": r.get("candidate_id") or "",
@@ -2581,7 +2600,7 @@ def get_otp_analytics(user=Depends(verify_token)):
                 "status": r.get("status") or "",
                 "message": r.get("message") or "",
                 "client_id": r.get("client_id") or "",
-                "created_at": created
+                "created_at": created_str
             })
 
         return {
