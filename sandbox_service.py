@@ -240,21 +240,19 @@ class SandboxService:
                     "Content-Type": "application/json"
                 }
 
-                try:
-                    ref_id = int(str(client_id).strip())
-                except Exception:
-                    ref_id = str(client_id).strip()
+                ref_id = str(client_id).strip()
 
                 payload = {
-                    "@entity": "in.co.sandbox.kyc.aadhaar.okyc.otp.verify",
+                    "@entity": "in.co.sandbox.kyc.aadhaar.okyc.request",
                     "reference_id": ref_id,
                     "otp": str(otp).strip()
                 }
 
-                # Try Primary OKYC Verify Endpoint first, then Fallback V2 Verify Endpoint on attempt 2
-                endpoint_url = f"{SANDBOX_BASE_URL}/kyc/aadhaar/okyc/otp/verify" if attempt == 1 else f"{SANDBOX_BASE_URL}/kyc/aadhaar/v2/otp/verify"
+                # Primary OKYC Verify Endpoint
+                endpoint_url = f"{SANDBOX_BASE_URL}/kyc/aadhaar/okyc/otp/verify"
                 if attempt > 1:
                     payload["@entity"] = "in.co.sandbox.kyc.aadhaar.v2.request"
+                    endpoint_url = f"{SANDBOX_BASE_URL}/kyc/aadhaar/v2/otp/verify"
 
                 SandboxService._rate_limit_stagger()
 
