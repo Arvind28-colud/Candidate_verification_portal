@@ -24,21 +24,26 @@ const PdfDownloadOptionModal = ({ isOpen, title, subtitle, onConfirm, onClose })
       <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative text-slate-900">
         
         {/* HEADER */}
-        <div className="bg-black p-5 text-white flex items-center justify-between border-b border-slate-800">
+        <div style={{ backgroundColor: '#0f172a', color: '#ffffff' }} className="p-5 flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-white">
-              <Download className="w-5 h-5 text-white" />
+            <div style={{ backgroundColor: '#1e293b', borderColor: '#334155' }} className="w-10 h-10 rounded-2xl border flex items-center justify-center">
+              <Download style={{ color: '#ffffff' }} className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold font-sans text-white">{title || 'PDF Download Options'}</h3>
-              <p className="text-xs text-slate-300 font-medium">{subtitle || 'Choose report page options before downloading'}</p>
+              <h3 style={{ color: '#ffffff', opacity: 1 }} className="text-base font-bold font-sans">
+                {title || 'PDF Download Options'}
+              </h3>
+              <p style={{ color: '#cbd5e1', opacity: 1 }} className="text-xs font-medium">
+                {subtitle || 'Choose report page options before downloading'}
+              </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
+            style={{ color: '#ffffff' }}
+            className="p-1.5 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
           >
-            <X className="w-5 h-5 text-slate-300 hover:text-white" />
+            <X style={{ color: '#ffffff' }} className="w-5 h-5" />
           </button>
         </div>
 
