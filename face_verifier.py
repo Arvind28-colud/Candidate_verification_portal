@@ -5,24 +5,36 @@ import logging
 from PIL import Image
 import numpy as np
 
+import threading
+
 logger = logging.getLogger("face_verifier")
 
-# Initialize InsightFace with ArcFace (buffalo_l model)
 INSIGHTFACE_APP = None
-HAS_INSIGHTFACE = False
+_INSIGHTFACE_LOCK = threading.Lock()
+_INSIGHTFACE_FAILED = False
 
-try:
-    import insightface
-    from insightface.app import FaceAnalysis
-    
-    # Initialize FaceAnalysis app with buffalo_l model using ONNX runtime
-    INSIGHTFACE_APP = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
-    INSIGHTFACE_APP.prepare(ctx_id=0, det_size=(640, 640))
-    HAS_INSIGHTFACE = True
-    logger.info("InsightFace buffalo_l ArcFace model initialized successfully.")
-except Exception as e:
-    HAS_INSIGHTFACE = False
-    logger.warning(f"InsightFace buffalo_l loading status: {e}")
+def get_insightface_app():
+    """Lazy-loads InsightFace ArcFace model on demand so application boots instantaneously (<0.1s)."""
+    global INSIGHTFACE_APP, _INSIGHTFACE_FAILED
+    if INSIGHTFACE_APP is not None:
+        return INSIGHTFACE_APP
+    if _INSIGHTFACE_FAILED:
+        return None
+
+    with _INSIGHTFACE_LOCK:
+        if INSIGHTFACE_APP is None and not _INSIGHTFACE_FAILED:
+            try:
+                import insightface
+                from insightface.app import FaceAnalysis
+                logger.info("Lazy-loading InsightFace buffalo_l ArcFace model on demand...")
+                app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
+                app.prepare(ctx_id=0, det_size=(640, 640))
+                INSIGHTFACE_APP = app
+                logger.info("InsightFace buffalo_l ArcFace model loaded successfully.")
+            except Exception as e:
+                _INSIGHTFACE_FAILED = True
+                logger.warning(f"InsightFace buffalo_l loading status: {e}")
+    return INSIGHTFACE_APP
 
 
 def clean_b64(b64_str) -> bytes:
@@ -86,12 +98,13 @@ def compare_faces_insightface_buffalo(raw_live: bytes, raw_vault: bytes) -> dict
         if img_vault.width < 250 or img_vault.height < 250:
             img_vault = img_vault.resize((400, 400), Image.Resampling.LANCZOS)
 
-        if INSIGHTFACE_APP:
+        app = get_insightface_app()
+        if app:
             arr_live = np.array(img_live)[:, :, ::-1]  # Convert RGB to BGR for InsightFace/OpenCV
             arr_vault = np.array(img_vault)[:, :, ::-1]
             
-            faces_live = INSIGHTFACE_APP.get(arr_live)
-            faces_vault = INSIGHTFACE_APP.get(arr_vault)
+            faces_live = app.get(arr_live)
+            faces_vault = app.get(arr_vault)
             
             if faces_live and faces_vault:
                 emb1 = faces_live[0].normed_embedding
