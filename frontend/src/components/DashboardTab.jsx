@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { exportCandidatesToExcel } from '../utils/excelExporter';
 import { downloadCandidatePdf, downloadBulkPdfsZip } from '../utils/pdfGenerator';
+import { fetchAndCacheCandidate } from '../utils/candidateCache';
 
 const DashboardTab = ({ token, activeCompany: parentActiveCompany, initialStatusFilter = 'ALL', onNavigateToReg, onOpenVerifyModal, onOpenCompareModal }) => {
   const [user] = useState(() => {
@@ -548,6 +549,7 @@ const DashboardTab = ({ token, activeCompany: parentActiveCompany, initialStatus
 
                           {isVerified ? (
                             <button
+                              onMouseEnter={() => fetchAndCacheCandidate(cand, token)}
                               onClick={() => onOpenCompareModal(cand)}
                               className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 text-[11px] font-semibold transition-all cursor-pointer"
                             >

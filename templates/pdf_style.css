@@ -1,0 +1,180 @@
+/* PDF Layout Style Sheet for Candidate Verification Report */
+
+@page {
+  size: A4 portrait;
+  margin: 5mm;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  color: #000000;
+  font-size: 8.5pt;
+  line-height: 1.35;
+  background-color: #ffffff;
+  margin: 0;
+  padding: 0;
+}
+
+/* Outer Page Container with 1.5px border */
+.page-outer-box {
+  border: 1.5px solid #000000;
+  padding: 10px 12px;
+  background-color: #ffffff;
+}
+
+/* Header & Meta Bar */
+.header-box {
+  text-align: center;
+  border-bottom: 1.5px solid #000000;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}
+
+.company-title {
+  font-size: 16pt;
+  font-weight: bold;
+  text-transform: uppercase;
+  margin: 0;
+  color: #000000;
+  letter-spacing: 0.5px;
+}
+
+.sub-title {
+  font-size: 9.5pt;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: #000000;
+  margin: 3px 0 4px 0;
+  letter-spacing: 0.5px;
+}
+
+.header-divider {
+  border-bottom: 1px solid #000000;
+  margin: 3px 0;
+}
+
+.meta-bar {
+  margin-top: 4px;
+  font-size: 8.5pt;
+  color: #000000;
+  background-color: #ffffff;
+  border-top: 1px solid #000000;
+  border-bottom: 2px solid #000000;
+  padding: 4px 0;
+  width: 100%;
+}
+
+.meta-bar td {
+  border: none !important;
+}
+
+/* Section Banner */
+.section-heading {
+  font-size: 9pt;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: #ffffff;
+  background-color: #000000;
+  padding: 4px 6px;
+  margin-top: 6px;
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+
+/* Info Cards */
+.box-card {
+  border: 1px solid #000000;
+  background: #ffffff;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+}
+
+.box-header-title {
+  font-size: 8.5pt;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: #000000;
+  border-bottom: 1px solid #000000;
+  padding-bottom: 3px;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.box-content {
+  padding: 2px 0;
+  font-size: 8.5pt;
+  line-height: 1.45;
+  color: #000000;
+  background: #ffffff;
+}
+
+/* Image Containers */
+.photo-img {
+  width: 95px;
+  height: 115px;
+  border: 1px solid #000000;
+  object-fit: cover;
+}
+
+.card-container {
+  border: 1px solid #000000;
+  padding: 4px;
+  height: 140px;
+  background: #ffffff;
+  text-align: center;
+}
+
+.card-img {
+  max-height: 130px;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+/* Matrix Table */
+.matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8pt;
+  text-align: center;
+}
+
+.matrix-table th {
+  background: #ffffff;
+  font-weight: bold;
+  color: #000000;
+  border: 1px solid #000000;
+  padding: 4px 2px;
+}
+
+.matrix-table td {
+  border: 1px solid #000000;
+  padding: 4px 2px;
+  font-weight: normal;
+  color: #000000;
+}
+
+/* Footers */
+.footer-bar {
+  border-top: 1px solid #000000;
+  padding-top: 4px;
+  font-size: 8pt;
+  color: #000000;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.footer-bar td {
+  border: none !important;
+}
+
+/* Page 2 Handwriting Box */
+.handwriting-box {
+  border: 1px solid #000000;
+  height: 650px;
+  background: #ffffff;
+  margin-top: 4px;
+}

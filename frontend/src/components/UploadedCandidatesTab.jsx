@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { exportCandidatesToExcel } from '../utils/excelExporter';
 import { downloadCandidatePdf, downloadBulkPdfsZip } from '../utils/pdfGenerator';
+import { fetchAndCacheCandidate } from '../utils/candidateCache';
 
 const UploadedCandidatesTab = ({ token, activeCompany, onOpenVerifyModal }) => {
   const [candidates, setCandidates] = useState([]);
@@ -609,6 +610,7 @@ const UploadedCandidatesTab = ({ token, activeCompany, onOpenVerifyModal }) => {
                         <div className="flex items-center justify-center space-x-1.5">
                           {/* SINGLE PDF DOWNLOAD BUTTON */}
                           <button
+                            onMouseEnter={() => fetchAndCacheCandidate(cand, token)}
                             onClick={() => handleDownloadSinglePdf(cand)}
                             disabled={isDownloadingPdf}
                             className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold text-[11px] transition-colors cursor-pointer disabled:opacity-50"

@@ -1,4 +1,13 @@
 import os
+import sys
+
+# Sanitize PATH to remove C:\Program Files\Tesseract-OCR which contains incompatible GLib/GObject DLLs
+# that trigger Windows entry point errors (libgobject-2.0-0.dll) when Python imports libraries.
+if "PATH" in os.environ:
+    paths = os.environ["PATH"].split(os.pathsep)
+    cleaned = [p for p in paths if "tesseract-ocr" not in p.lower()]
+    os.environ["PATH"] = os.pathsep.join(cleaned)
+
 import logging
 import uuid
 import uvicorn
@@ -19,6 +28,9 @@ mimetypes.add_type("image/svg+xml", ".svg")
 try:
     from PIL import Image
     import pytesseract
+    tesseract_bin = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    if os.path.exists(tesseract_bin):
+        pytesseract.pytesseract.tesseract_cmd = tesseract_bin
     HAS_OCR = True
 except ImportError:
     HAS_OCR = False
@@ -2527,4 +2539,4 @@ def get_otp_analytics(user=Depends(verify_token)):
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8001))
     # Bind to 0.0.0.0 so the server is reachable externally across local network IP
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=port, reload=True)

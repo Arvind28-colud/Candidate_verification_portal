@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Candidate Identity &amp; Aadhaar e-KYC Verification Report</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 5mm;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      color: #000000;
+      font-size: 8.5pt;
+      line-height: 1.35;
+      background-color: #ffffff;
+      margin: 0;
+      padding: 0;
+    }
+    /* Outer Page Container with 1.5px border */
+    .page-outer-box {
+      border: 1.5px solid #000000;
+      padding: 10px 12px;
+      background-color: #ffffff;
+    }
+    /* Header & Meta Bar */
+    .header-box {
+      text-align: center;
+      border-bottom: 1.5px solid #000000;
+      padding-bottom: 4px;
+      margin-bottom: 4px;
+    }
+    .company-title {
+      font-size: 16pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin: 0;
+      color: #000000;
+      letter-spacing: 0.5px;
+    }
+    .sub-title {
+      font-size: 9.5pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      color: #000000;
+      margin: 3px 0 4px 0;
+      letter-spacing: 0.5px;
+    }
+    .header-divider {
+      border-bottom: 1px solid #000000;
+      margin: 3px 0;
+    }
+    .meta-bar {
+      margin-top: 4px;
+      font-size: 8.5pt;
+      color: #000000;
+      background-color: #ffffff;
+      border-top: 1px solid #000000;
+      border-bottom: 2px solid #000000;
+      padding: 4px 0;
+      width: 100%;
+    }
+    .meta-bar td {
+      border: none !important;
+    }
+    /* Section Banner */
+    .section-heading {
+      font-size: 9pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      color: #ffffff;
+      background-color: #000000;
+      padding: 4px 6px;
+      margin-top: 6px;
+      margin-bottom: 4px;
+      letter-spacing: 0.5px;
+    }
+    /* Info Cards */
+    .box-card {
+      border: 1px solid #000000;
+      background: #ffffff;
+      padding: 6px 8px;
+      margin-bottom: 4px;
+    }
+    .box-header-title {
+      font-size: 8.5pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      color: #000000;
+      border-bottom: 1px solid #000000;
+      padding-bottom: 3px;
+      margin-bottom: 4px;
+      text-align: center;
+    }
+    .box-content {
+      padding: 2px 0;
+      font-size: 8.5pt;
+      line-height: 1.45;
+      color: #000000;
+      background: #ffffff;
+    }
+    /* Image Containers */
+    .photo-img {
+      width: 95px;
+      height: 115px;
+      border: 1px solid #000000;
+      object-fit: cover;
+    }
+    .card-container {
+      border: 1px solid #000000;
+      padding: 4px;
+      height: 140px;
+      background: #ffffff;
+      text-align: center;
+    }
+    .card-img {
+      max-height: 130px;
+      max-width: 100%;
+      object-fit: contain;
+    }
+    /* Matrix Table */
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8pt;
+      text-align: center;
+    }
+    .matrix-table th {
+      background: #ffffff;
+      font-weight: bold;
+      color: #000000;
+      border: 1px solid #000000;
+      padding: 4px 2px;
+    }
+    .matrix-table td {
+      border: 1px solid #000000;
+      padding: 4px 2px;
+      font-weight: normal;
+      color: #000000;
+    }
+    /* Footers */
+    .footer-bar {
+      border-top: 1px solid #000000;
+      padding-top: 4px;
+      font-size: 8pt;
+      color: #000000;
+      margin-top: 8px;
+      width: 100%;
+    }
+    .footer-bar td {
+      border: none !important;
+    }
+    /* Page 2 Handwriting Box */
+    .handwriting-box {
+      border: 1px solid #000000;
+      height: 650px;
+      background: #ffffff;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ================= PAGE 1 ================= -->
+  <div class="page-outer-box">
+
+    <!-- TOP HEADER -->
+    <div class="header-box">
+      <!-- COMPANY LOGO (OPTIONAL) -->
+      {{COMPANY_LOGO_HTML}}
+      <div class="company-title">{{COMPANY_NAME}}</div>
+      <div style="border-bottom: 1px solid #000000; margin: 3px 0;"></div>
+      <div class="sub-title">Candidate Identity &amp; Aadhaar e-KYC Verification Report</div>
+      <table class="meta-bar">
+        <tr>
+          <td style="text-align:left; border:none;"><strong>Candidate ID:</strong> {{CANDIDATE_ID}}</td>
+          <td style="text-align:center; border:none;"><strong>Status:</strong> {{STATUS_BADGE}}</td>
+          <td style="text-align:right; border:none;"><strong>Date:</strong> {{DATE_STR}}</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- 1. CANDIDATE IDENTITY PHOTOS -->
+    <div class="section-heading">1. Candidate Identity Photos</div>
+    <div style="margin-bottom: 6px;">
+      <table style="width:100%; text-align:center; padding: 4px 0; border:none;">
+        <tr>
+          <td width="50%" style="text-align:center; border:none;">
+            <div style="font-size:8.5pt; font-weight:bold; color:#000000; margin-bottom:4px;">LIVE CAPTURED SELFIE</div>
+            <img src="{{LIVE_SELFIE_SRC}}" class="photo-img" alt="Live Selfie" />
+          </td>
+          <td width="50%" style="text-align:center; border:none;">
+            <div style="font-size:8.5pt; font-weight:bold; color:#000000; margin-bottom:4px;">AADHAAR e-KYC VAULT PHOTO</div>
+            <img src="{{VAULT_PHOTO_SRC}}" class="photo-img" alt="Vault Photo" />
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- 2. PERSONAL REGISTRATION & VERIFIED AADHAAR DETAILS -->
+    <div class="section-heading">2. Personal Registration &amp; Verified Aadhaar Details</div>
+    <table style="width:100%; border:none; margin-bottom: 4px;">
+      <tr>
+        <td width="50%" style="vertical-align:top; padding:0 3px 0 0; border:none;">
+          <div class="box-card">
+            <div class="box-header-title">Registered Candidate Info</div>
+            <div class="box-content">
+              <strong>Company Name:</strong> {{COMPANY_NAME}}<br/>
+              {{PROJECT_NAME_ROW}}
+              <strong>Full Name:</strong> {{REG_FULL_NAME}}<br/>
+              <strong>Father's Name:</strong> {{REG_FATHER_NAME}}<br/>
+              <strong>Mobile Phone:</strong> {{REG_PHONE}}<br/>
+              <strong>Aadhaar No:</strong> {{MASKED_AADHAAR}}<br/>
+              <strong>Date of Birth:</strong> {{REG_DOB}}<br/>
+              <strong>Address:</strong> {{REG_ADDRESS}}
+            </div>
+          </div>
+        </td>
+        <td width="50%" style="vertical-align:top; padding:0 0 0 3px; border:none;">
+          <div class="box-card">
+            <div class="box-header-title">Aadhaar Vault Record</div>
+            <div class="box-content">
+              <strong>Verified Name:</strong> {{VER_FULL_NAME}}<br/>
+              <strong>Verified Father's Name:</strong> {{VER_FATHER_NAME}}<br/>
+              <strong>Verified DOB:</strong> {{VER_DOB}}<br/>
+              <strong>Gender:</strong> {{VER_GENDER}}<br/>
+              <strong>Masked Aadhaar:</strong> {{MASKED_AADHAAR}}<br/>
+              <strong>Aadhaar Address:</strong> {{VER_ADDRESS}}<br/>
+              <strong>Verified At:</strong> {{VERIFIED_AT_TIMESTAMP}}
+            </div>
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- 3. OFFICIAL AADHAAR CARD DOCUMENT ATTACHMENTS -->
+    <div class="section-heading">3. Official Aadhaar Card Document Attachments</div>
+    <table style="width:100%; border:none; margin-bottom: 4px;">
+      <tr>
+        <td width="50%" style="text-align:center; padding:0 3px 0 0; border:none;">
+          <div style="font-size:8.5pt; font-weight:bold; color:#000000; margin-bottom:3px;">AADHAAR CARD - FRONT VIEW</div>
+          <div class="card-container">
+            <img src="{{AADHAAR_FRONT_SRC}}" class="card-img" alt="Aadhaar Front" />
+          </div>
+        </td>
+        <td width="50%" style="text-align:center; padding:0 0 0 3px; border:none;">
+          <div style="font-size:8.5pt; font-weight:bold; color:#000000; margin-bottom:3px;">AADHAAR CARD - BACK VIEW / ADDRESS</div>
+          <div class="card-container">
+            <img src="{{AADHAAR_BACK_SRC}}" class="card-img" alt="Aadhaar Back" />
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- 4. ATTRIBUTE MATCH MATRIX -->
+    <div class="section-heading" style="margin-top:6px;">4. Attribute Match Matrix</div>
+    <div style="margin-bottom: 4px;">
+      <table class="matrix-table">
+        <thead>
+          <tr>
+            <th>Name Match</th>
+            <th>Father's Name Match</th>
+            <th>Face Match</th>
+            <th>DOB Match</th>
+            <th>Uploaded Card Match</th>
+            <th>Aadhaar Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>{{NAME_MATCH_CELL}}</td>
+            <td>{{FATHER_MATCH_CELL}}</td>
+            <td>{{FACE_MATCH_CELL}}</td>
+            <td>{{DOB_MATCH_CELL}}</td>
+            <td>{{CARD_MATCH_CELL}}</td>
+            <td>{{AADHAAR_STATUS_CELL}}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- PAGE 1 FOOTER -->
+    <table class="footer-bar" style="width:100%; border:none;">
+      <tr>
+        <td style="text-align:left; border:none;">{{COMPANY_NAME}} • Verification Report ({{CANDIDATE_ID}})</td>
+        <td style="text-align:right; border:none;"><strong>Page 1 of 2</strong></td>
+      </tr>
+    </table>
+
+  </div>
+
+  <!-- ================= PAGE 2 ================= -->
+  <div class="page-outer-box" style="page-break-before: always; margin-top: 10px;">
+
+    <!-- PAGE 2 HEADER (EXACT SAME AS PAGE 1) -->
+    <div class="header-box">
+      {{COMPANY_LOGO_HTML}}
+      <div class="company-title">{{COMPANY_NAME}}</div>
+      <div style="border-bottom: 1px solid #000000; margin: 3px 0;"></div>
+      <div class="sub-title">Candidate Identity &amp; Aadhaar e-KYC Verification Report</div>
+      <table class="meta-bar">
+        <tr>
+          <td style="text-align:left; border:none;"><strong>Candidate ID:</strong> {{CANDIDATE_ID}}</td>
+          <td style="text-align:center; border:none;"><strong>Status:</strong> {{STATUS_BADGE}}</td>
+          <td style="text-align:right; border:none;"><strong>Date:</strong> {{DATE_STR}}</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- 5. POLICE OFFICER HANDWRITTEN NOTES & REMARKS -->
+    <div class="section-heading" style="font-size:9.5pt; margin-top:6px;">5. Police Officer Handwritten Notes &amp; Remarks</div>
+
+    <!-- MASSIVE BLANK WRITING BOX FILLING PAGE 2 -->
+    <div class="handwriting-box">
+    </div>
+
+    <!-- VERIFYING OFFICER & DATE AT VERY BOTTOM -->
+    <table style="width:100%; margin-top: 18px; font-size:8.5pt; color:#000000; border:none;">
+      <tr>
+        <td style="text-align:left; border:none; vertical-align:bottom;">
+          <strong>Verifying Officer Name &amp; Badge ID:</strong><br/><br/>
+          ____________________________________
+        </td>
+        <td style="text-align:right; border:none; vertical-align:bottom;">
+          <strong>Date:</strong> _____ / _____ / 2026
+        </td>
+      </tr>
+    </table>
+
+    <!-- PAGE 2 FOOTER -->
+    <table class="footer-bar" style="width:100%; border:none;">
+      <tr>
+        <td style="text-align:left; border:none;">{{COMPANY_NAME}} • Verification Report ({{CANDIDATE_ID}})</td>
+        <td style="text-align:right; border:none;"><strong>Page 2 of 2</strong></td>
+      </tr>
+    </table>
+
+  </div>
+
+</body>
+</html>

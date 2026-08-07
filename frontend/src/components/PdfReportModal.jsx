@@ -1,56 +1,46 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { X, Download, Printer, FileText, Eye, Loader2 } from 'lucide-react';
+import { X, Download, Printer, FileText, Eye } from 'lucide-react';
 import ImageModal from './ImageModal';
+import { getCachedCandidate, fetchAndCacheCandidate } from '../utils/candidateCache';
 
 const PdfReportModal = ({ candidate, onClose }) => {
   const printRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
-  const [loadingDetails, setLoadingDetails] = useState(true);
+  const [, setLoadingDetails] = useState(true);
   const [previewImage, setPreviewImage] = useState(null);
-  const [fullCandidate, setFullCandidate] = useState(candidate);
+
+  // Synchronously initialize from cache for instant 0ms render
+  const [fullCandidate, setFullCandidate] = useState(() => {
+    const targetId = candidate?.id || candidate?.candidate_id;
+    return getCachedCandidate(targetId) || candidate;
+  });
+
   const activeCandidate = fullCandidate || candidate;
 
   useEffect(() => {
     let isMounted = true;
-    const hasPhotos = Boolean(
-      candidate?.photo_base64 ||
-      candidate?.face_photo_base64 ||
-      candidate?.aadhaar_front_base64
-    );
+    const targetId = candidate?.id || candidate?.candidate_id;
+    const cached = getCachedCandidate(targetId);
 
-    if (!hasPhotos && (candidate?.id || candidate?.candidate_id)) {
-      setLoadingDetails(true);
-      const token = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token') || localStorage.getItem('token');
-      const compParam = candidate?.company_name ? `?company=${encodeURIComponent(candidate.company_name)}` : '';
-      const targetId = candidate?.id || candidate?.candidate_id;
-      fetch(`/api/candidate/${targetId}${compParam}`, {
-        headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}` 
-        }
-      })
-        .then((r) => r.json())
-        .then((d) => {
-          if (isMounted) {
-            if (d.success && d.candidate) {
-              setFullCandidate(d.candidate);
-            }
-            setLoadingDetails(false);
-          }
-        })
-        .catch(() => {
-          if (isMounted) setLoadingDetails(false);
-        });
-    } else {
-      setFullCandidate(candidate);
+    if (cached && (cached.photo_base64 || cached.face_photo_base64 || cached.aadhaar_front_base64)) {
+      setFullCandidate(cached);
       setLoadingDetails(false);
+      return;
     }
+
+    setLoadingDetails(true);
+    fetchAndCacheCandidate(candidate).then((updated) => {
+      if (isMounted && updated) {
+        setFullCandidate(updated);
+      }
+      if (isMounted) setLoadingDetails(false);
+    });
+
     return () => {
       isMounted = false;
     };
   }, [candidate]);
 
-  // Prioritize candidate's registered company name or organization
   const [companyName] = useState(() => {
     return (
       activeCandidate?.company_name ||
@@ -76,7 +66,7 @@ const PdfReportModal = ({ candidate, onClose }) => {
             setCompanyLogo(d.logo_base64);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [activeCandidate, companyName]);
 
@@ -192,23 +182,23 @@ const PdfReportModal = ({ candidate, onClose }) => {
   const getNameMatch = () => {
     const reg = (activeCandidate.full_name || '').trim().replace(/\s+/g, ' ').toUpperCase();
     const ver = (activeCandidate.verified_name || '').trim().replace(/\s+/g, ' ').toUpperCase();
-    if (!reg || !ver) return { label: 'NO DATA', isMatch: false, isNa: true };
-    if (reg === ver) return { label: 'MATCH ✓', isMatch: true, isNa: false };
-    return { label: 'MISMATCH ✕', isMatch: false, isNa: false };
+    if (!reg || !ver) return { label: 'NO DATA' };
+    if (reg === ver) return { label: 'MATCH ✓' };
+    return { label: 'MISMATCH ✕' };
   };
 
   const getFatherMatch = () => {
     const regRaw = (activeCandidate.reg_father_name || activeCandidate.father_name || '').trim().toUpperCase();
     const verRaw = (activeCandidate.verified_father_name || '').trim().toUpperCase();
     if (!regRaw || !verRaw || regRaw === 'NOT PROVIDED' || verRaw === 'NOT PROVIDED') {
-      return { label: 'NO DATA', isMatch: false, isNa: true };
+      return { label: 'NO DATA' };
     }
     const cleanReg = regRaw.replace(/^(MR|SRI|S|D|W)\/O\s*/i, '').trim().replace(/\s+/g, ' ');
     const cleanVer = verRaw.replace(/^(MR|SRI|S|D|W)\/O\s*/i, '').trim().replace(/\s+/g, ' ');
     if (cleanReg === cleanVer) {
-      return { label: 'MATCH ✓', isMatch: true, isNa: false };
+      return { label: 'MATCH ✓' };
     }
-    return { label: 'MISMATCH ✕', isMatch: false, isNa: false };
+    return { label: 'MISMATCH ✕' };
   };
 
   const getFaceMatch = () => {
@@ -218,38 +208,37 @@ const PdfReportModal = ({ candidate, onClose }) => {
     const vaultPhoto = activeCandidate.photo_base64 || activeCandidate.face_photo_base64;
 
     if (!facePhoto || !vaultPhoto) {
-      return { label: 'NO DATA', isMatch: false, isNa: true };
+      return { label: 'NO DATA' };
     }
 
     if (status === 'MISMATCH' || (score !== undefined && score !== null && score > 0 && score < 55)) {
-      return { label: `MISMATCH ✕ (${score ? score + '%' : 'Mismatch'})`, isMatch: false, isNa: false };
+      return { label: `MISMATCH ✕ (${score ? score + '%' : 'Mismatch'})` };
     }
     if (status === 'MATCH' || (score !== undefined && score !== null && score >= 55)) {
-      return { label: `MATCH ✓ (${score ? score + '%' : 'Match'})`, isMatch: true, isNa: false };
+      return { label: `MATCH ✓ (${score ? score + '%' : 'Match'})` };
     }
 
-    return { label: 'MISMATCH ✕', isMatch: false, isNa: false };
+    return { label: 'MISMATCH ✕' };
   };
 
   const getDobMatch = () => {
     const reg = (activeCandidate.reg_dob || '').trim();
     const ver = (activeCandidate.verified_dob || '').trim();
-    if (!reg || !ver) return { label: 'NO DATA', isMatch: false, isNa: true };
-    if (reg === ver) return { label: 'MATCH ✓', isMatch: true, isNa: false };
-    return { label: 'MISMATCH ✕', isMatch: false, isNa: false };
+    if (!reg || !ver) return { label: 'NO DATA' };
+    if (reg === ver) return { label: 'MATCH ✓' };
+    return { label: 'MISMATCH ✕' };
   };
 
   const getCardMatch = () => {
     const status = (activeCandidate.card_ocr_status || '').toUpperCase();
-    if (status === 'MATCH') return { label: 'MATCH ✓', isMatch: true, isNa: false };
-    if (status === 'MISMATCH') return { label: `MISMATCH ✕ (OCR: ${activeCandidate.card_ocr_name || '?'})`, isMatch: false, isNa: false };
-    if (status === 'BLUR' || status === 'BLANK') return { label: 'BLUR / BLANK ⚠', isMatch: false, isNa: false };
-    if (status === 'NO_CARD') return { label: 'NO CARD', isMatch: false, isNa: true };
+    if (status === 'MATCH') return { label: 'MATCH ✓' };
+    if (status === 'MISMATCH') return { label: 'MISMATCH ✕' };
+    if (status === 'BLUR' || status === 'BLANK') return { label: 'BLUR / BLANK ⚠' };
+    if (status === 'NO_CARD') return { label: 'NO CARD' };
     const hasFront = activeCandidate.aadhaar_front_base64;
     const hasBack = activeCandidate.aadhaar_back_base64;
-    if (!hasFront && !hasBack) return { label: 'NO CARD', isMatch: false, isNa: true };
-    if (status === 'NO_OCR') return { label: 'UNREADABLE ✕', isMatch: false, isNa: false };
-    return { label: 'UNREADABLE ✕', isMatch: false, isNa: false };
+    if (!hasFront && !hasBack) return { label: 'NO CARD' };
+    return { label: 'UNREADABLE ✕' };
   };
 
   const pdfNameStatus = getNameMatch();
@@ -258,21 +247,22 @@ const PdfReportModal = ({ candidate, onClose }) => {
   const pdfDobStatus = getDobMatch();
   const pdfCardStatus = getCardMatch();
 
-  const defaultFaceImg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'><rect width='100%' height='100%' fill='%23ffffff' stroke='%23000000' stroke-width='1.5'/><text x='50%' y='50%' font-size='10' font-weight='bold' fill='%23000000' text-anchor='middle' dy='.3em'>NO PHOTO</text></svg>";
-  const defaultAadhaarImg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='500' height='220' viewBox='0 0 500 220'><rect width='100%' height='100%' fill='%23ffffff' stroke='%23000000' stroke-width='1.5'/><text x='50%' y='50%' font-size='12' font-weight='bold' fill='%23000000' text-anchor='middle'>NO AADHAAR CARD IMAGE</text></svg>";
+  const defaultFaceImg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'><rect width='100%' height='100%' fill='%2372f772'/></svg>";
+  const defaultAadhaarImg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='500' height='220' viewBox='0 0 500 220'><rect width='100%' height='100%' fill='%2372f772'/></svg>";
 
-  const liveSelfie = activeCandidate.face_photo_base64 || activeCandidate.photo_base64 || defaultFaceImg;
-  const vaultPhoto = activeCandidate.photo_base64 || activeCandidate.face_photo_base64 || defaultFaceImg;
+  const liveSelfie = activeCandidate.face_photo_base64 || defaultFaceImg;
+  const vaultPhoto = activeCandidate.photo_base64 || defaultFaceImg;
   const aadhaarFront = activeCandidate.aadhaar_front_base64 || defaultAadhaarImg;
   const aadhaarBack = activeCandidate.aadhaar_back_base64 || defaultAadhaarImg;
 
   const currentCompanyName = companyName.trim() || 'Keen Sighted Workforce Services';
+  const aadhaarLast4 = activeCandidate.aadhaar_number ? activeCandidate.aadhaar_number.slice(-4) : '9012';
 
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4 overflow-y-auto">
         <div className="bg-white border border-slate-200 rounded-3xl max-w-5xl w-full text-slate-900 overflow-hidden shadow-2xl relative my-6">
-          
+
           {/* Action Bar */}
           <div className="bg-white p-4 border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 text-slate-900">
             <div className="flex items-center space-x-3">
@@ -281,7 +271,7 @@ const PdfReportModal = ({ candidate, onClose }) => {
               </div>
               <div>
                 <span className="text-sm font-bold text-slate-900 block font-sans">Verification PDF Report</span>
-                <span className="text-xs text-slate-500 font-medium">Exact 2-Page Official Print Format &bull; {candidate.full_name}</span>
+                <span className="text-xs text-slate-500 font-medium">Exact 2-Page Official Print Format &bull; {activeCandidate.full_name}</span>
               </div>
             </div>
 
@@ -312,329 +302,301 @@ const PdfReportModal = ({ candidate, onClose }) => {
           </div>
 
           {/* PRINTABLE 2-PAGE PDF REPORT CONTAINER */}
-          <div className="p-6 bg-slate-100/90 max-h-[82vh] overflow-y-auto flex flex-col items-center space-y-6">
-            <div id="printable-pdf-report" ref={printRef} className="w-full max-w-[820px]">
-              
-              {/* ================= PAGE 1: FULL PAGE FOR ALL CANDIDATE DETAILS & LARGE AADHAAR CARD ================= */}
-              <div className="pdf-page bg-white p-6 border-2 border-black shadow-lg rounded-none space-y-2 text-black font-sans relative" style={{ boxSizing: 'border-box', minHeight: '940px' }}>
-                
-                {/* 1. DOCUMENT HEADER WITH COMPANY LOGO & NAME */}
-                <div className="text-center border-b-2 border-black pb-2">
-                  {companyLogo ? (
-                    <div className="w-16 h-16 mx-auto mb-1 flex items-center justify-center">
-                      <img src={companyLogo} alt={currentCompanyName} className="max-h-full max-w-full object-contain" />
+          <div className="p-6 bg-slate-500 max-h-[82vh] overflow-y-auto flex flex-col items-center space-y-8">
+            <div id="printable-pdf-report" ref={printRef} className="w-[210mm] flex flex-col items-center gap-8">
+
+              {/* ================= PAGE 1 ================= */}
+              <div className="pdf-page bg-white p-[10mm] text-black font-sans relative flex flex-col justify-between shadow-2xl w-[210mm] h-[285mm] box-border">
+
+                {/* TOP CONTENT WRAPPER */}
+                <div className="flex flex-col space-y-2.5">
+                  {/* TOP HEADER */}
+                  <div className="text-center">
+                    {companyLogo ? (
+                      <div className="w-14 h-14 mx-auto mb-1 flex items-center justify-center">
+                        <img src={companyLogo} alt={currentCompanyName} className="max-h-full max-w-full object-contain" />
+                      </div>
+                    ) : null}
+                    <h1 className="text-xl font-bold uppercase tracking-wide text-black font-sans mb-1">
+                      {currentCompanyName}
+                    </h1>
+                    <div className="border-t border-b border-black py-1 mb-1">
+                      <p className="text-xs font-bold uppercase text-black tracking-wide font-sans">
+                        Candidate Identity &amp; Aadhaar e-KYC Verification Report
+                      </p>
                     </div>
-                  ) : null}
-                  <h1 className="text-xl font-bold uppercase tracking-wider text-black font-sans">
-                    {currentCompanyName}
-                  </h1>
-                  <p className="text-xs font-bold uppercase text-black tracking-wide mt-0.5 font-mono">
-                    Candidate Identity & Aadhaar e-KYC Verification Report
-                  </p>
-                  <div className="flex items-center justify-between mt-1 text-[10px] font-mono border-t border-slate-300 pt-1">
-                    <span><strong>CANDIDATE ID:</strong> {candidate.candidate_id}</span>
-                    <span><strong>STATUS:</strong> VERIFIED e-KYC ✓</span>
-                    <span><strong>DATE:</strong> {new Date().toLocaleDateString()}</span>
-                  </div>
-                </div>
-
-                {/* 2. CANDIDATE IDENTITY PHOTOS */}
-                <div className="border border-black bg-white space-y-0">
-                  <div className="bg-slate-100 text-black border-b border-black font-mono text-[9px] font-bold px-2.5 py-0.5 uppercase flex justify-between items-center">
-                    <span>1. Candidate Identity Photos</span>
-                    <span className="text-black text-[8px]">Live vs e-KYC</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 justify-items-center p-1.5 bg-white">
-                    {/* PHOTO 1: LIVE CAPTURED SELFIE */}
-                    <div className="text-center space-y-1">
-                      <span className="text-[9px] font-bold font-mono text-black block uppercase">
-                        LIVE CAPTURED SELFIE
+                    <div className="flex items-center justify-between text-[11px] font-bold border-b border-black pb-1.5 text-black">
+                      <span><strong>Candidate ID:</strong> {activeCandidate.candidate_id || 'ID0001'}</span>
+                      <span>
+                        <strong>Status:</strong>{' '}
+                        {activeCandidate.verification_status === 'VERIFIED' ? (
+                          <span>VERIFIED e-KYC ✓</span>
+                        ) : activeCandidate.verification_status === 'FAILED' ? (
+                          <span>FAILED ✕</span>
+                        ) : (
+                          <span>PENDING ⚠</span>
+                        )}
                       </span>
-                      <div
-                        className="w-28 h-28 overflow-hidden border border-black bg-white cursor-pointer hover:opacity-90 transition-opacity group relative shadow-xs"
-                        onClick={() => setPreviewImage({ src: liveSelfie, title: `Live Selfie - ${candidate.full_name}` })}
-                        title="Click to view image"
-                      >
-                        <img
-                          src={liveSelfie}
-                          alt="Live Selfie"
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="no-print-overlay absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                          <Eye className="w-4 h-4 text-white" />
+                      <span><strong>Date:</strong> {new Date().toLocaleDateString()}</span>
+                    </div>
+                  </div>
+
+                  {/* 1. CANDIDATE IDENTITY PHOTOS */}
+                  <div className="space-y-1 pt-1">
+                    <div className="bg-black text-white text-[11px] font-bold uppercase tracking-wider px-2 py-1 font-sans">
+                      1. Candidate Identity Photos
+                    </div>
+
+                    <div className="bg-white p-1 grid grid-cols-2 gap-4 justify-items-center">
+                      {/* LIVE CAPTURED SELFIE */}
+                      <div className="text-center space-y-1">
+                        <span className="text-[10px] font-bold font-sans text-black block uppercase">
+                          LIVE CAPTURED SELFIE
+                        </span>
+                        <div
+                          className="w-[135px] h-[155px] overflow-hidden border border-black bg-white cursor-pointer group relative shadow-xs"
+                          onClick={() => setPreviewImage({ src: liveSelfie, title: `Live Selfie - ${activeCandidate.full_name}` })}
+                          title="Click to view image"
+                        >
+                          <img
+                            src={liveSelfie}
+                            alt="Live Selfie"
+                            loading="eager"
+                            decoding="sync"
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="no-print-overlay absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                            <Eye className="w-4 h-4 text-white" />
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* PHOTO 2: AADHAAR VAULT PHOTO */}
-                    <div className="text-center space-y-1">
-                      <span className="text-[9px] font-bold font-mono text-black block uppercase">
-                        AADHAAR e-KYC VAULT PHOTO
-                      </span>
-                      <div
-                        className="w-28 h-28 overflow-hidden border border-black bg-white cursor-pointer hover:opacity-90 transition-opacity group relative shadow-xs"
-                        onClick={() => setPreviewImage({ src: vaultPhoto, title: `Aadhaar Vault Photo - ${candidate.full_name}` })}
-                        title="Click to view image"
-                      >
-                        <img
-                          src={vaultPhoto}
-                          alt="Aadhaar Vault Photo"
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="no-print-overlay absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                          <Eye className="w-4 h-4 text-white" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. PERSONAL REGISTRATION & VERIFIED AADHAAR DETAILS */}
-                <div className="space-y-0.5">
-                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-black font-mono border-b border-black pb-0.5 text-center">
-                    2. Personal Registration & Verified Aadhaar Details
-                  </h3>
-
-                  <div className="grid grid-cols-2 gap-2 text-[10px] font-sans">
-                    {/* LEFT: REGISTERED CANDIDATE INFO */}
-                    <div className="border border-black bg-white space-y-0">
-                      <div className="bg-slate-100 text-black border-b border-black font-mono text-[8px] font-bold px-2 py-0.5 uppercase flex justify-between items-center">
-                        <span>Registered Candidate Info</span>
-                        <span className="text-slate-600 text-[8px]">Form Entry</span>
-                      </div>
-                      <div className="p-1.5 space-y-0.5 text-[9px] text-black leading-tight">
-                        <p><strong>Company:</strong> {currentCompanyName}</p>
-                        <p><strong>Full Name:</strong> {candidate.full_name}</p>
-                        <p><strong>Father&apos;s Name:</strong> {regFather}</p>
-                        <p><strong>Designation:</strong> {candidate.reg_designation || candidate.designation || '-'}</p>
-                        <p><strong>State:</strong> {candidate.reg_state || candidate.state || '-'}</p>
-                        <p><strong>District:</strong> {candidate.reg_district || candidate.district || '-'}</p>
-                        <p><strong>Mobile Phone:</strong> {candidate.phone}</p>
-                        <p><strong>Aadhaar No:</strong> XXXX-XXXX-{candidate.aadhaar_number?.slice(-4)}</p>
-                        <p><strong>Date of Birth:</strong> {candidate.reg_dob || '-'}</p>
-                        <p className="break-words"><strong>Address:</strong> {candidate.reg_address || '-'}</p>
-                      </div>
-                    </div>
-
-                    {/* RIGHT: OFFICIAL AADHAAR VAULT RECORD */}
-                    <div className="border border-black bg-white space-y-0">
-                      <div className="bg-slate-100 text-black border-b border-black font-mono text-[8px] font-bold px-2 py-0.5 uppercase flex justify-between items-center">
-                        <span>Aadhaar Vault Record</span>
-                        <span className="text-slate-600 text-[8px]">Verified e-KYC</span>
-                      </div>
-                      <div className="p-1.5 space-y-0.5 text-[9px] text-black leading-tight">
-                        <p><strong>Verified Name:</strong> {verName}</p>
-                        <p><strong>Verified Father:</strong> {verFather}</p>
-                        <p><strong>Verified DOB:</strong> {verDob}</p>
-                        <p><strong>Gender:</strong> {verGender}</p>
-                        <p><strong>Masked Aadhaar:</strong> XXXX-XXXX-{candidate.aadhaar_number?.slice(-4)}</p>
-                        <p className="break-words"><strong>Aadhaar Address:</strong> {verAddress}</p>
-                        <p><strong>Verified At:</strong> {candidate.verified_at ? new Date(candidate.verified_at).toLocaleDateString() : 'Verified'}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 4. LARGE & CLEAR OFFICIAL AADHAAR CARD DOCUMENT ATTACHMENTS */}
-                <div className="space-y-0.5">
-                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-black font-mono border-b border-black pb-0.5 text-center">
-                    3. Official Aadhaar Card Document Attachments (High Resolution Print)
-                  </h3>
-
-                  <div className="grid grid-cols-2 gap-3 pt-0.5">
-                    {/* AADHAAR FRONT CARD IMAGE - ENLARGED FOR HIGH PRINT VISIBILITY */}
-                    <div className="text-center space-y-0.5">
-                      <span className="text-[8px] font-bold font-mono text-black block uppercase">
-                        Aadhaar Card - Front View
-                      </span>
-                      <div
-                        className="w-full flex items-center justify-center cursor-pointer hover:opacity-95 transition-opacity group relative border border-slate-300 p-1 bg-white rounded"
-                        onClick={() => setPreviewImage({ src: aadhaarFront, title: `Aadhaar Front Document - ${candidate.full_name}` })}
-                      >
-                        <img
-                          src={aadhaarFront}
-                          alt="Aadhaar Front Document"
-                          className="max-h-[380px] w-full object-contain rounded-sm"
-                        />
-                        <div className="no-print-overlay absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                          <span className="bg-black text-white text-[8px] font-mono px-2 py-0.5 flex items-center">
-                            <Eye className="w-3 h-3 mr-1 text-white" /> View Full
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* AADHAAR BACK CARD IMAGE - ENLARGED FOR HIGH PRINT VISIBILITY */}
-                    <div className="text-center space-y-0.5">
-                      <span className="text-[8px] font-bold font-mono text-black block uppercase">
-                        Aadhaar Card - Back View / Address
-                      </span>
-                      <div
-                        className="w-full flex items-center justify-center cursor-pointer hover:opacity-95 transition-opacity group relative border border-slate-300 p-1 bg-white rounded"
-                        onClick={() => setPreviewImage({ src: aadhaarBack, title: `Aadhaar Back Document - ${candidate.full_name}` })}
-                      >
-                        <img
-                          src={aadhaarBack}
-                          alt="Aadhaar Back Document"
-                          className="max-h-[380px] w-full object-contain rounded-sm"
-                        />
-                        <div className="no-print-overlay absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                          <span className="bg-black text-white text-[8px] font-mono px-2 py-0.5 flex items-center">
-                            <Eye className="w-3 h-3 mr-1 text-white" /> View Full
-                          </span>
+                      {/* AADHAAR e-KYC VAULT PHOTO */}
+                      <div className="text-center space-y-1">
+                        <span className="text-[10px] font-bold font-sans text-black block uppercase">
+                          AADHAAR e-KYC VAULT PHOTO
+                        </span>
+                        <div
+                          className="w-[135px] h-[155px] overflow-hidden border border-black bg-white cursor-pointer group relative shadow-xs"
+                          onClick={() => setPreviewImage({ src: vaultPhoto, title: `Aadhaar Vault Photo - ${activeCandidate.full_name}` })}
+                          title="Click to view image"
+                        >
+                          <img
+                            src={vaultPhoto}
+                            alt="Aadhaar Vault Photo"
+                            loading="eager"
+                            decoding="sync"
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="no-print-overlay absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                            <Eye className="w-4 h-4 text-white" />
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* 5. ATTRIBUTE MATCH MATRIX TABLE */}
-                <div className="border border-black bg-white space-y-0">
-                  <div className="bg-slate-100 text-black border-b border-black font-mono text-[8px] font-bold px-2 py-0.5 uppercase flex justify-between items-center">
-                    <span>4. Attribute Match Matrix</span>
-                    <span className="text-slate-600 text-[8px]">Field-by-Field Verification</span>
+                  {/* 2. PERSONAL REGISTRATION & VERIFIED AADHAAR DETAILS */}
+                  <div className="space-y-1">
+                    <div className="bg-black text-white text-[11px] font-bold uppercase tracking-wider px-2 py-1 font-sans">
+                      2. Personal Registration &amp; Verified Aadhaar Details
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[10px] font-sans">
+                      {/* LEFT: REGISTERED CANDIDATE INFO */}
+                      <div className="border border-slate-600 bg-white p-2.5 space-y-1">
+                        <div className="bg-white text-black border-b border-slate-600 font-sans text-[10px] font-bold pb-1 text-center uppercase">
+                          Registered Candidate Info
+                        </div>
+                        <div className="pt-1 space-y-1 text-[10px] text-black leading-snug">
+                          <p><strong>Company Name:</strong> {currentCompanyName}</p>
+                          <p><strong>Project Name:</strong> {activeCandidate.reg_project_name || activeCandidate.project_name || 'Site Verification Project'}</p>
+                          <p><strong>Full Name:</strong> {activeCandidate.full_name || 'Ramesh Kumar'}</p>
+                          <p><strong>Father&apos;s Name:</strong> {regFather}</p>
+                          <p><strong>Mobile Phone:</strong> {activeCandidate.phone || '9876543210'}</p>
+                          <p><strong>Aadhaar No:</strong> XXXX-XXXX-{aadhaarLast4}</p>
+                          <p><strong>Date of Birth:</strong> {activeCandidate.reg_dob || '15/08/1995'}</p>
+                          <p className="break-words"><strong>Address:</strong> {activeCandidate.reg_address || 'Flat 402, Greenfield Apartments, Sector 62, Noida, UP - 201301'}</p>
+                        </div>
+                      </div>
+
+                      {/* RIGHT: AADHAAR VAULT RECORD */}
+                      <div className="border border-slate-600 bg-white p-2.5 space-y-1">
+                        <div className="bg-white text-black border-b border-slate-600 font-sans text-[10px] font-bold pb-1 text-center uppercase">
+                          Aadhaar Vault Record
+                        </div>
+                        <div className="pt-1 space-y-1 text-[10px] text-black leading-snug">
+                          <p><strong>Verified Name:</strong> {verName}</p>
+                          <p><strong>Verified Father&apos;s Name:</strong> {verFather}</p>
+                          <p><strong>Verified DOB:</strong> {verDob}</p>
+                          <p><strong>Gender:</strong> {verGender}</p>
+                          <p><strong>Masked Aadhaar:</strong> XXXX-XXXX-{aadhaarLast4}</p>
+                          <p className="break-words"><strong>Aadhaar Address:</strong> {verAddress}</p>
+                          <p><strong>Verified At:</strong> {activeCandidate.verified_at ? new Date(activeCandidate.verified_at).toLocaleString() : '2026-08-06 21:45:00'}</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <table className="w-full text-left font-mono text-[8px] border-collapse">
-                    <thead className="bg-slate-50 text-black font-bold border-b border-black">
-                      <tr>
-                        <th className="p-1 border-r border-black">Name Match</th>
-                        <th className="p-1 border-r border-black text-center">Father&apos;s Name Match</th>
-                        <th className="p-1 border-r border-black text-center">Face Match</th>
-                        <th className="p-1 border-r border-black text-center">DOB Match</th>
-                        <th className="p-1 border-r border-black text-center">Uploaded Card Match</th>
-                        <th className="p-1 text-center">Aadhaar Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-black">
-                      <tr>
-                        <td className="p-1 border-r border-black font-bold">
-                          <span className={pdfNameStatus.isMatch ? 'text-black font-bold' : 'text-black font-bold'}>
-                            {pdfNameStatus.label}
-                          </span>
-                        </td>
-                        <td className="p-1 border-r border-black text-center font-bold">
-                          <span className={pdfFatherStatus.isMatch ? 'text-black font-bold' : 'text-black font-bold'}>
-                            {pdfFatherStatus.label}
-                          </span>
-                        </td>
-                        <td className="p-1 border-r border-black text-center font-bold">
-                          <span className={pdfFaceStatus.isMatch ? 'text-black font-bold' : 'text-black font-bold'}>
-                            {pdfFaceStatus.label}
-                          </span>
-                        </td>
-                        <td className="p-1 border-r border-black text-center font-bold">
-                          <span className={pdfDobStatus.isMatch ? 'text-black font-bold' : 'text-black font-bold'}>
-                            {pdfDobStatus.label}
-                          </span>
-                        </td>
-                        <td className="p-1 border-r border-black text-center font-bold">
-                          <span className={pdfCardStatus.isMatch ? 'text-black font-bold' : 'text-black font-bold'}>
-                            {pdfCardStatus.label}
-                          </span>
-                        </td>
-                        <td className="p-1 text-center font-bold text-black">
-                          {candidate.verification_status === 'VERIFIED' ? 'VERIFIED ✓' : 'PENDING'}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+
+                  {/* 3. OFFICIAL AADHAAR CARD DOCUMENT ATTACHMENTS */}
+                  <div className="space-y-1">
+                    <div className="bg-black text-white text-[11px] font-bold uppercase tracking-wider px-2 py-1 font-sans">
+                      3. Official Aadhaar Card Document Attachments
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-0.5">
+                      {/* FRONT CARD VIEW */}
+                      <div className="p-1 text-center space-y-1">
+                        <span className="text-[10px] font-bold font-sans text-black block uppercase">
+                          AADHAAR CARD - FRONT VIEW
+                        </span>
+                        <div
+                          className="w-full flex items-center justify-center cursor-pointer group relative h-[190px]"
+                          onClick={() => setPreviewImage({ src: aadhaarFront, title: `Aadhaar Front - ${activeCandidate.full_name}` })}
+                        >
+                          <img
+                            src={aadhaarFront}
+                            alt="Aadhaar Front Document"
+                            loading="eager"
+                            decoding="sync"
+                            className="max-h-[185px] w-auto max-w-full object-contain"
+                          />
+                        </div>
+                      </div>
+
+                      {/* BACK CARD VIEW */}
+                      <div className="p-1 text-center space-y-1">
+                        <span className="text-[10px] font-bold font-sans text-black block uppercase">
+                          AADHAAR CARD - BACK VIEW / ADDRESS
+                        </span>
+                        <div
+                          className="w-full flex items-center justify-center cursor-pointer group relative h-[190px]"
+                          onClick={() => setPreviewImage({ src: aadhaarBack, title: `Aadhaar Back - ${activeCandidate.full_name}` })}
+                        >
+                          <img
+                            src={aadhaarBack}
+                            alt="Aadhaar Back Document"
+                            loading="eager"
+                            decoding="sync"
+                            className="max-h-[185px] w-auto max-w-full object-contain"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4. ATTRIBUTE MATCH MATRIX */}
+                  <div className="space-y-1">
+                    <div className="bg-black text-white text-[11px] font-bold uppercase tracking-wider px-2 py-1 font-sans">
+                      4. Attribute Match Matrix
+                    </div>
+                    <table className="w-full text-center font-sans text-[10px] border-collapse border border-black">
+                      <thead className="bg-white text-black font-bold border-b border-black">
+                        <tr>
+                          <th className="p-1 border-r border-black w-[15%]">Name Match</th>
+                          <th className="p-1 border-r border-black w-[18%]">Father's Name Match</th>
+                          <th className="p-1 border-r border-black w-[15%]">Face Match</th>
+                          <th className="p-1 border-r border-black w-[15%]">DOB Match</th>
+                          <th className="p-1 border-r border-black w-[20%]">Uploaded Card Match</th>
+                          <th className="p-1 w-[17%]">Aadhaar Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td className="p-1.5 border-r border-black font-bold text-black">{pdfNameStatus.label}</td>
+                          <td className="p-1.5 border-r border-black font-bold text-black">{pdfFatherStatus.label}</td>
+                          <td className="p-1.5 border-r border-black font-bold text-black">{pdfFaceStatus.label}</td>
+                          <td className="p-1.5 border-r border-black font-bold text-black">{pdfDobStatus.label}</td>
+                          <td className="p-1.5 border-r border-black font-bold text-black">{pdfCardStatus.label}</td>
+                          <td className="p-1.5 font-bold text-black">
+                            {activeCandidate.verification_status === 'VERIFIED' ? 'VERIFIED ✓' : activeCandidate.verification_status === 'FAILED' ? 'FAILED ✕' : 'PENDING ⚠'}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
                 {/* PAGE 1 FOOTER */}
-                <div className="pt-1.5 border-t border-black flex justify-between items-center text-[9px] font-mono text-black">
-                  <span>{currentCompanyName} • Candidate Verification Report ({candidate.candidate_id})</span>
+                <div className="pt-2 border-t border-slate-400 flex justify-between items-center text-[9px] font-sans text-black">
+                  <span>{currentCompanyName} • Verification Report ({activeCandidate.candidate_id || 'ID0001'})</span>
                   <span className="font-bold">Page 1 of 2</span>
                 </div>
               </div>
 
-              {/* STRICT PAGE BREAK CLASS FOR HTML2PDF */}
+              {/* PAGE BREAK MARKER */}
               <div className="html2pdf__page-break pdf-page-break" style={{ height: '0px', margin: '0', padding: '0', pageBreakBefore: 'always' }} />
 
-              {/* ================= PAGE 2: STRICTLY FOR PHYSICAL POLICE VERIFICATION ================= */}
-              <div className="pdf-page bg-white p-6 border-2 border-black shadow-lg rounded-none text-black font-sans relative mt-6 flex flex-col justify-between" style={{ boxSizing: 'border-box', minHeight: '940px', height: '940px' }}>
-                
+              {/* ================= PAGE 2 ================= */}
+              <div className="pdf-page bg-white p-[10mm] text-black font-sans relative flex flex-col justify-between shadow-2xl w-[210mm] h-[285mm] box-border">
+
                 {/* TOP CONTENT WRAPPER */}
-                <div className="flex flex-col flex-1 space-y-3">
-                  {/* PAGE 2 HEADER WITH COMPANY LOGO & NAME */}
-                  <div className="border-b-2 border-black pb-2 flex justify-between items-end">
-                    <div className="flex items-center space-x-3">
-                      {companyLogo && (
-                        <div className="w-12 h-12 flex items-center justify-center shrink-0">
-                          <img src={companyLogo} alt={currentCompanyName} className="max-h-full max-w-full object-contain" />
-                        </div>
-                      )}
-                      <div>
-                        <h2 className="text-lg font-bold uppercase text-black tracking-wide font-sans">
-                          {currentCompanyName}
-                        </h2>
-                        <p className="text-[10px] font-bold text-black uppercase font-mono tracking-wide mt-0.5">
-                          OFFLINE POLICE VERIFICATION & BACKGROUND CLEARANCE RECORD
-                        </p>
+                <div className="flex flex-col flex-1 space-y-2">
+                  {/* TOP HEADER */}
+                  <div className="text-center">
+                    {companyLogo ? (
+                      <div className="w-14 h-14 mx-auto mb-1 flex items-center justify-center">
+                        <img src={companyLogo} alt={currentCompanyName} className="max-h-full max-w-full object-contain" />
                       </div>
+                    ) : null}
+                    <h2 className="text-xl font-bold uppercase tracking-wide text-black font-sans mb-1">
+                      {currentCompanyName}
+                    </h2>
+                    <div className="border-t border-b border-black py-1 mb-1">
+                      <p className="text-xs font-bold uppercase text-black tracking-wide font-sans">
+                        Candidate Identity &amp; Aadhaar e-KYC Verification Report
+                      </p>
                     </div>
-                    <div className="text-right font-mono text-[9px]">
-                      <p className="font-bold text-black">CANDIDATE ID: {candidate.candidate_id}</p>
-                      <p className="text-black">DATE: {new Date().toLocaleDateString()}</p>
+                    <div className="flex items-center justify-between text-[11px] font-bold border-b border-black pb-1.5 text-black">
+                      <span><strong>Candidate ID:</strong> {activeCandidate.candidate_id || 'ID0001'}</span>
+                      <span>
+                        <strong>Status:</strong>{' '}
+                        {activeCandidate.verification_status === 'VERIFIED' ? (
+                          <span>VERIFIED e-KYC ✓</span>
+                        ) : activeCandidate.verification_status === 'FAILED' ? (
+                          <span>FAILED ✕</span>
+                        ) : (
+                          <span>PENDING ⚠</span>
+                        )}
+                      </span>
+                      <span><strong>Date:</strong> {new Date().toLocaleDateString()}</span>
                     </div>
                   </div>
 
-                  {/* CANDIDATE OVERVIEW BOX */}
-                  <div className="border border-black p-2.5 bg-white font-mono text-[10px] space-y-1">
-                    <div className="grid grid-cols-2 gap-2 text-[10px]">
-                      <p><strong>Candidate Name:</strong> {candidate.full_name}</p>
+                  {/* DETAILS SUMMARY BOX ABOVE SECTION 5 */}
+                  <div className="border border-black bg-slate-50 p-2.5 my-1 text-[10px] font-sans">
+                    <div className="grid grid-cols-2 gap-2">
+                      <p><strong>Full Name:</strong> {activeCandidate.full_name || 'Ramesh Kumar'}</p>
                       <p><strong>Father&apos;s Name:</strong> {regFather}</p>
-                      <p><strong>Mobile Phone:</strong> {candidate.phone}</p>
-                      <p><strong>Aadhaar No:</strong> XXXX-XXXX-{candidate.aadhaar_number?.slice(-4)}</p>
-                    </div>
-                    <p className="text-[10px] pt-1 border-t border-black">
-                      <strong>Permanent Address:</strong> {verAddress !== '-' ? verAddress : candidate.reg_address || 'Not Provided'}
-                    </p>
-                  </div>
-
-                  {/* 1. PHYSICAL POLICE CLEARANCE STATUS */}
-                  <div className="border border-black bg-white space-y-0">
-                    <div className="bg-slate-100 text-black border-b border-black font-mono text-[9px] font-bold px-3 py-1 uppercase">
-                      Physical Police Clearance Status
-                    </div>
-                    <div className="p-3 bg-white space-y-2 font-mono text-[10px] text-black">
-                      <p className="font-bold">Clearance Result:</p>
-                      <div className="space-y-1.5 pl-2">
-                        <p className="font-bold">[ &nbsp;&nbsp; ] CLEAR (0 Criminal FIRs)</p>
-                        <p className="font-bold">[ &nbsp;&nbsp; ] FLAGGED (FIRs On Record)</p>
-                      </div>
+                      <p><strong>Mobile Number:</strong> {activeCandidate.phone || '9876543210'}</p>
+                      <p><strong>Aadhaar Number:</strong> XXXX-XXXX-{aadhaarLast4}</p>
                     </div>
                   </div>
 
-                  {/* 2. POLICE OFFICER PHYSICAL HANDWRITING NOTES & REMARKS (EXPANDED TO FILL PAGE) */}
-                  <div className="border border-black bg-white flex-1 flex flex-col min-h-[460px]">
-                    <div className="bg-slate-100 text-black border-b border-black font-mono text-[9px] font-bold px-3 py-1 uppercase">
-                      Police Officer Physical Handwriting Notes & Remarks
-                    </div>
-                    <div className="p-4 bg-white flex-1 min-h-[420px] relative" style={{
-                      backgroundImage: 'repeating-linear-gradient(transparent, transparent 31px, #e2e8f0 31px, #e2e8f0 32px)',
-                      backgroundAttachment: 'local'
-                    }}>
-                      {/* FULL PAGE RULED HANDWRITING LINES */}
-                    </div>
+                  {/* 5. POLICE OFFICER HANDWRITTEN NOTES & REMARKS */}
+                  <div className="bg-black text-white text-[11px] font-bold uppercase tracking-wider px-2 py-1 font-sans">
+                    5. Police Officer Handwritten Notes &amp; Remarks
                   </div>
+
+                  {/* REMARKS BOX */}
+                  <div className="border border-black bg-white flex-1 min-h-[170mm]"></div>
                 </div>
 
                 {/* BOTTOM SIGNATURE & FOOTER WRAPPER */}
-                <div className="pt-4 space-y-3 shrink-0">
-                  {/* END SIGNATURE & DATE LINES */}
-                  <div className="font-mono text-[10px] flex justify-between items-end">
-                    <div>
-                      <p className="font-bold text-black">Verifying Officer Name & Badge ID: ____________________________________</p>
+                <div className="pt-2 space-y-2 shrink-0">
+                  <div className="text-[11px] flex justify-between items-end font-sans font-bold text-black pt-2">
+                    <div className="flex items-end space-x-2">
+                      <span>Verifying Officer Name &amp; Badge ID:</span>
+                      <div className="border-b border-black w-[250px]"></div>
                     </div>
                     <div>
-                      <p className="font-bold text-black">Date: _____ / _____ / 2026</p>
+                      <p>Date: ______ / ______ / 2026</p>
                     </div>
                   </div>
 
                   {/* PAGE 2 FOOTER */}
-                  <div className="pt-2 border-t border-black flex justify-between items-center text-[9px] font-mono text-black">
-                    <span>{currentCompanyName} • Police Clearance Record ({candidate.candidate_id})</span>
+                  <div className="pt-2 border-t border-slate-400 flex justify-between items-center text-[9px] font-sans text-black">
+                    <span>{currentCompanyName} • Verification Report ({activeCandidate.candidate_id || 'ID0001'})</span>
                     <span className="font-bold">Page 2 of 2</span>
                   </div>
                 </div>

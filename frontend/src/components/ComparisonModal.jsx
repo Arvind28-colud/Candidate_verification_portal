@@ -1,35 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { X, FileText, ShieldCheck, CreditCard, Eye, Building2, Trash2 } from 'lucide-react';
 import ImageModal from './ImageModal';
+import { getCachedCandidate, fetchAndCacheCandidate } from '../utils/candidateCache';
 
 const ComparisonModal = ({ candidate, onClose, onOpenPdfModal }) => {
   const [previewImage, setPreviewImage] = useState(null);
-  const [fullCandidate, setFullCandidate] = useState(candidate);
+  
+  // Synchronous initialization from memory cache for instant 0ms render
+  const [fullCandidate, setFullCandidate] = useState(() => {
+    const targetId = candidate?.id || candidate?.candidate_id;
+    return getCachedCandidate(targetId) || candidate;
+  });
+
   const activeCandidate = fullCandidate || candidate;
   
   const compName = activeCandidate?.company_name || activeCandidate?.organization || localStorage.getItem('report_company_name') || 'Keen Sighted Workforce Services';
   const [companyLogo, setCompanyLogo] = useState(activeCandidate?.company_logo || '');
 
   useEffect(() => {
-    setFullCandidate(candidate);
-    if (candidate?.id || candidate?.candidate_id) {
-      const token = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token') || localStorage.getItem('token');
-      const compParam = candidate?.company_name ? `?company=${encodeURIComponent(candidate.company_name)}` : '';
-      const targetId = candidate?.id || candidate?.candidate_id;
-      fetch(`/api/candidate/${targetId}${compParam}`, {
-        headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}` 
-        }
-      })
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.success && d.candidate) {
-            setFullCandidate(d.candidate);
-          }
-        })
-        .catch(() => {});
+    let isMounted = true;
+    const targetId = candidate?.id || candidate?.candidate_id;
+    const cached = getCachedCandidate(targetId);
+
+    if (cached && (cached.photo_base64 || cached.face_photo_base64 || cached.aadhaar_front_base64)) {
+      setFullCandidate(cached);
+      return;
     }
+
+    fetchAndCacheCandidate(candidate).then((updated) => {
+      if (isMounted && updated) {
+        setFullCandidate(updated);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
   }, [candidate]);
 
   const handleDeleteInModal = async () => {

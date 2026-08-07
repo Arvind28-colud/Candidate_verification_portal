@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Candidate Identity & Aadhaar e-KYC Verification Report</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 8mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #000000;
+    }
+
+    body {
+      background-color: #ffffff;
+      font-size: 8.5pt;
+    }
+
+    /* Full Page Container with Outer Page Border */
+    .page {
+      width: 100%;
+      height: 277mm;
+      border: 1.5px solid #000000;
+      padding: 6mm;
+      position: relative;
+      page-break-after: always;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .page:last-child {
+      page-break-after: avoid;
+    }
+
+    .page-content {
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+    }
+
+    /* Document Header */
+    .doc-header {
+      text-align: center;
+      margin-bottom: 4px;
+    }
+
+    .company-name {
+      font-size: 16pt;
+      font-weight: bold;
+      margin-bottom: 3px;
+      text-transform: uppercase;
+    }
+
+    .report-title-bar {
+      font-size: 9.5pt;
+      font-weight: bold;
+      border-top: 1px solid #000000;
+      border-bottom: 1px solid #000000;
+      padding: 3px 0;
+      margin-bottom: 4px;
+    }
+
+    .meta-table {
+      width: 100%;
+      border-collapse: collapse;
+      border-bottom: 1px solid #000000;
+      margin-bottom: 6px;
+    }
+
+    .meta-table td {
+      font-size: 8.5pt;
+      padding-bottom: 3px;
+    }
+
+    /* Section Banner Headers */
+    .section-header {
+      background-color: #000000;
+      color: #ffffff;
+      font-size: 9pt;
+      font-weight: bold;
+      padding: 4px 8px;
+      margin-bottom: 6px;
+      margin-top: 6px;
+      display: block;
+      width: 100%;
+    }
+
+    /* Section 1: Photos Layout */
+    .photos-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 6px;
+    }
+
+    .photo-cell {
+      width: 50%;
+      text-align: center;
+      vertical-align: top;
+    }
+
+    .photo-label {
+      font-size: 8pt;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .selfie-img {
+      width: 135px;
+      height: 155px;
+      object-fit: cover;
+      border: 1px solid #000000;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .card-img {
+      width: 95%;
+      height: 195px;
+      object-fit: contain;
+      border: none;
+      display: block;
+      margin: 0 auto;
+    }
+
+    /* Section 2 & 3 Outer Tables */
+    .info-table-outer {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 6px;
+    }
+
+    .info-card-cell {
+      width: 50%;
+      vertical-align: top;
+      padding: 0 4px;
+    }
+
+    .info-card {
+      border: 1px solid #cccccc;
+      padding: 4px 6px;
+    }
+
+    .card-title {
+      text-align: center;
+      font-weight: bold;
+      font-size: 8.5pt;
+      border-bottom: 1px solid #cccccc;
+      padding-bottom: 3px;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+
+    .info-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5pt;
+      line-height: 1.45;
+    }
+
+    .info-table td {
+      padding: 2px 0;
+      vertical-align: top;
+    }
+
+    .info-table td.lbl {
+      font-weight: bold;
+      padding-right: 4px;
+      white-space: nowrap;
+      width: 38%;
+    }
+
+    .attachment-card {
+      /* Inner box borders removed per user request */
+      border: none;
+      padding: 2px;
+      text-align: center;
+    }
+
+    /* Section 4: Attribute Match Matrix */
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: center;
+      font-size: 8.5pt;
+      margin-bottom: 6px;
+    }
+
+    .matrix-table th,
+    .matrix-table td {
+      border: 1px solid #000000;
+      padding: 6px 2px;
+    }
+
+    .matrix-table th {
+      font-weight: bold;
+      background-color: #f0f0f0;
+      vertical-align: middle;
+    }
+
+    .matrix-table td {
+      font-weight: bold;
+    }
+
+    /* Page 2 Details Summary Box */
+    .summary-box {
+      border: 1px solid #000000;
+      padding: 6px 8px;
+      margin-bottom: 8px;
+      background-color: #f8f9fa;
+    }
+
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5pt;
+    }
+
+    .summary-table td {
+      padding: 2px 4px;
+    }
+
+    /* Page 2 Remarks Box (Expands to fill entire Page 2) */
+    .remarks-box {
+      border: 1px solid #000000;
+      flex-grow: 1;
+      width: 100%;
+      min-height: 165mm;
+      margin-bottom: 10px;
+    }
+
+    .signature-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5pt;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    .sig-line {
+      border-bottom: 1px solid #000000;
+      display: inline-block;
+      width: 230px;
+    }
+
+    /* Footer */
+    .doc-footer {
+      border-top: 1px solid #000000;
+      padding-top: 4px;
+      width: 100%;
+      font-size: 7.5pt;
+      margin-top: auto;
+    }
+
+    .footer-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ================= PAGE 1 ================= -->
+  <div class="page">
+    <div class="page-content">
+      <div class="doc-header">
+        <div class="company-name">{{ company_header }}</div>
+        <div class="report-title-bar">Candidate Identity & Aadhaar e-KYC Verification Report</div>
+        <table class="meta-table">
+          <tr>
+            <td style="width: 33%; text-align: left;"><strong>Candidate ID:</strong> {{ candidate_id }}</td>
+            <td style="width: 34%; text-align: center;"><strong>Status:</strong> {{ verification_status }}</td>
+            <td style="width: 33%; text-align: right;"><strong>Date:</strong> {{ report_date }}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- 1. Candidate Identity Photos -->
+      <div class="section-header">1. Candidate Identity Photos</div>
+      <table class="photos-table">
+        <tr>
+          <td class="photo-cell">
+            <div class="photo-label">LIVE CAPTURED SELFIE</div>
+            <img src="{{ selfie_url }}" class="selfie-img" alt="Selfie" />
+          </td>
+          <td class="photo-cell">
+            <div class="photo-label">AADHAAR e-KYC VAULT PHOTO</div>
+            <img src="{{ vault_photo_url }}" class="selfie-img" alt="Vault Photo" />
+          </td>
+        </tr>
+      </table>
+
+      <!-- 2. Personal Registration Details -->
+      <div class="section-header">2. Personal Registration & Verified Aadhaar Details</div>
+      <table class="info-table-outer">
+        <tr>
+          <td class="info-card-cell">
+            <div class="info-card">
+              <div class="card-title">Registered Candidate Info</div>
+              <table class="info-table">
+                <tr><td class="lbl">Company Name:</td><td>{{ reg_company }}</td></tr>
+                <tr><td class="lbl">Project Name:</td><td>{{ reg_project }}</td></tr>
+                <tr><td class="lbl">Full Name:</td><td>{{ reg_name }}</td></tr>
+                <tr><td class="lbl">Father's Name:</td><td>{{ reg_father_name }}</td></tr>
+                <tr><td class="lbl">Mobile Phone:</td><td>{{ reg_mobile }}</td></tr>
+                <tr><td class="lbl">Aadhaar No:</td><td>{{ reg_aadhaar }}</td></tr>
+                <tr><td class="lbl">Date of Birth:</td><td>{{ reg_dob }}</td></tr>
+                <tr><td class="lbl">Address:</td><td>{{ reg_address }}</td></tr>
+              </table>
+            </div>
+          </td>
+          <td class="info-card-cell">
+            <div class="info-card">
+              <div class="card-title">Aadhaar Vault Record</div>
+              <table class="info-table">
+                <tr><td class="lbl">Verified Name:</td><td>{{ vault_name }}</td></tr>
+                <tr><td class="lbl">Verified Father's Name:</td><td>{{ vault_father_name }}</td></tr>
+                <tr><td class="lbl">Verified DOB:</td><td>{{ vault_dob }}</td></tr>
+                <tr><td class="lbl">Gender:</td><td>{{ vault_gender }}</td></tr>
+                <tr><td class="lbl">Masked Aadhaar:</td><td>{{ vault_aadhaar }}</td></tr>
+                <tr><td class="lbl">Aadhaar Address:</td><td>{{ vault_address }}</td></tr>
+                <tr><td class="lbl">Verified At:</td><td>{{ vault_verified_at }}</td></tr>
+              </table>
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <!-- 3. Document Attachments -->
+      <div class="section-header">3. Official Aadhaar Card Document Attachments</div>
+      <table class="info-table-outer">
+        <tr>
+          <td class="info-card-cell">
+            <div class="attachment-card">
+              <div class="photo-label">AADHAAR CARD - FRONT VIEW</div>
+              <img src="{{ card_front_url }}" class="card-img" alt="Aadhaar Front" />
+            </div>
+          </td>
+          <td class="info-card-cell">
+            <div class="attachment-card">
+              <div class="photo-label">AADHAAR CARD - BACK VIEW / ADDRESS</div>
+              <img src="{{ card_back_url }}" class="card-img" alt="Aadhaar Back" />
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <!-- 4. Attribute Match Matrix -->
+      <div class="section-header">4. Attribute Match Matrix</div>
+      <table class="matrix-table">
+        <thead>
+          <tr>
+            <th style="width: 15%;">Name Match</th>
+            <th style="width: 18%;">Father's Name Match</th>
+            <th style="width: 15%;">Face Match</th>
+            <th style="width: 15%;">DOB Match</th>
+            <th style="width: 20%;">Uploaded Card Match</th>
+            <th style="width: 17%;">Aadhaar Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>{{ matrix.name_match }}</td>
+            <td>{{ matrix.father_match }}</td>
+            <td>{{ matrix.face_match }}</td>
+            <td>{{ matrix.dob_match }}</td>
+            <td>{{ matrix.card_match }}</td>
+            <td>{{ matrix.aadhaar_status }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Footer Page 1 -->
+    <div class="doc-footer">
+      <table class="footer-table">
+        <tr>
+          <td style="text-align: left;">{{ company_header }} &bull; Verification Report ({{ candidate_id }})</td>
+          <td style="text-align: right;">Page 1 of 2</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- ================= PAGE 2 ================= -->
+  <div class="page">
+    <div class="page-content">
+      <div class="doc-header">
+        <div class="company-name">{{ company_header }}</div>
+        <div class="report-title-bar">Candidate Identity & Aadhaar e-KYC Verification Report</div>
+        <table class="meta-table">
+          <tr>
+            <td style="width: 33%; text-align: left;"><strong>Candidate ID:</strong> {{ candidate_id }}</td>
+            <td style="width: 34%; text-align: center;"><strong>Status:</strong> {{ verification_status }}</td>
+            <td style="width: 33%; text-align: right;"><strong>Date:</strong> {{ report_date }}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Candidate Details Summary Box above Section 5 -->
+      <div class="summary-box">
+        <table class="summary-table">
+          <tr>
+            <td style="width: 50%;"><strong>Full Name:</strong> {{ reg_name }}</td>
+            <td style="width: 50%;"><strong>Father's Name:</strong> {{ reg_father_name }}</td>
+          </tr>
+          <tr>
+            <td><strong>Mobile Number:</strong> {{ reg_mobile }}</td>
+            <td><strong>Aadhaar Number:</strong> {{ reg_aadhaar }}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- 5. Remarks -->
+      <div class="section-header">5. Police Officer Handwritten Notes & Remarks</div>
+      <div class="remarks-box"></div>
+
+      <!-- Signatures -->
+      <table class="signature-table">
+        <tr>
+          <td style="text-align: left; vertical-align: bottom;">
+            Verifying Officer Name & Badge ID: <div class="sig-line"></div>
+          </td>
+          <td style="text-align: right; vertical-align: bottom;">
+            Date: ______ / ______ / 2026
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Footer Page 2 -->
+    <div class="doc-footer">
+      <table class="footer-table">
+        <tr>
+          <td style="text-align: left;">{{ company_header }} &bull; Verification Report ({{ candidate_id }})</td>
+          <td style="text-align: right;">Page 2 of 2</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+</body>
+
+</html>

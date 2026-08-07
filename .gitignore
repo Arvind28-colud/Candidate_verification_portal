@@ -50,3 +50,12 @@ candidates_backup.json
 # Operating system files
 .DS_Store
 Thumbs.db
+
+# Test/Debug PDF and PNG output files
+debug_report.html
+sample_verification_report.pdf
+*_page_*.png
+large_aadhaar_*.png
+larger_aadhaar_*.png
+updated_*.png
+

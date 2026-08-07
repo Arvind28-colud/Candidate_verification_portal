@@ -1,4 +1,6 @@
 import os
+import sys
+import uuid
 import pymysql
 import sqlite3
 import logging
@@ -350,22 +352,32 @@ def resequence_all_candidate_ids():
         cursor.execute("SELECT id, candidate_id FROM candidates ORDER BY id ASC")
         rows = cursor.fetchall()
 
-        changed_count = 0
+        mismatches = []
         for idx, r in enumerate(rows, start=1):
             target_cid = f"ID{idx:04d}"
             row_id = r["id"] if isinstance(r, dict) else r[0]
             current_cid = r["candidate_id"] if isinstance(r, dict) else r[1]
-
             if current_cid != target_cid:
-                changed_count += 1
+                mismatches.append((row_id, target_cid))
+
+        if mismatches:
+            # Pass 1: Set temp candidate_id to avoid MySQL unique key collision
+            for row_id, _ in mismatches:
+                temp_cid = f"TEMP_{row_id}_{uuid.uuid4().hex[:6]}"
+                if db_type == "mysql":
+                    cursor.execute("UPDATE candidates SET candidate_id = %s WHERE id = %s", (temp_cid, row_id))
+                else:
+                    cursor.execute("UPDATE candidates SET candidate_id = ? WHERE id = ?", (temp_cid, row_id))
+
+            # Pass 2: Set exact target sequential candidate_id
+            for row_id, target_cid in mismatches:
                 if db_type == "mysql":
                     cursor.execute("UPDATE candidates SET candidate_id = %s WHERE id = %s", (target_cid, row_id))
                 else:
                     cursor.execute("UPDATE candidates SET candidate_id = ? WHERE id = ?", (target_cid, row_id))
 
-        conn.commit()
-        if changed_count:
-            logger.info(f"resequence_all_candidate_ids: updated {changed_count} candidate ID(s) to be strictly sequential.")
+            conn.commit()
+            logger.info(f"resequence_all_candidate_ids: updated {len(mismatches)} candidate ID(s) to be strictly sequential.")
     except Exception as e:
         logger.warning(f"resequence_all_candidate_ids error: {e}")
     finally:
