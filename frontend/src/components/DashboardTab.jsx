@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { exportCandidatesToExcel } from '../utils/excelExporter';
 import { downloadCandidatePdf, downloadBulkPdfsZip } from '../utils/pdfGenerator';
-import { fetchAndCacheCandidate } from '../utils/candidateCache';
+import { fetchAndCacheCandidate, preloadAllCandidatePhotos } from '../utils/candidateCache';
 
 const DashboardTab = ({ token, activeCompany: parentActiveCompany, initialStatusFilter = 'ALL', onNavigateToReg, onOpenVerifyModal, onOpenCompareModal }) => {
   const [user] = useState(() => {
@@ -128,6 +128,7 @@ const DashboardTab = ({ token, activeCompany: parentActiveCompany, initialStatus
       if (candData.success) {
         const cList = candData.candidates || [];
         setCandidates(cList);
+        preloadAllCandidatePhotos(token, selectedCompany);
 
         const total = cList.length;
         const completed = cList.filter((c) => c.verification_status === 'VERIFIED').length;

@@ -61,3 +61,38 @@ export const fetchAndCacheCandidate = async (cand, token) => {
   }
   return cand;
 };
+
+export const preloadAllCandidatePhotos = async (token, activeCompany) => {
+  try {
+    const authToken = token || sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token') || localStorage.getItem('token');
+    if (!authToken) return;
+
+    let url = '/api/candidates/photos-batch';
+    if (activeCompany && activeCompany !== 'ALL') {
+      url += `?company=${encodeURIComponent(activeCompany)}`;
+    }
+
+    const res = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`
+      }
+    });
+
+    const data = await res.json();
+    if (data.success && Array.isArray(data.photos)) {
+      data.photos.forEach((p) => {
+        const id = p.id || p.candidate_id;
+        if (!id) return;
+        const existing = getCachedCandidate(id) || {};
+        const merged = {
+          ...existing,
+          ...p
+        };
+        setCachedCandidate(id, merged);
+      });
+    }
+  } catch (err) {
+    console.error('Batch photo pre-cache notice:', err);
+  }
+};

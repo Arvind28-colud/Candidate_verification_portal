@@ -1885,6 +1885,25 @@ def ensure_candidates_face_match(candidates_list: list):
             c["face_match_status"] = "NO_PHOTO"
             c["face_match_score"] = 0
 
+@app.get("/api/candidates/photos-batch")
+def get_candidates_photos_batch(company: Optional[str] = None, user=Depends(verify_token)):
+    """Returns Base64 photos for all candidate records to enable instant 0ms report opening on Railway."""
+    target_company = decode_company_param(company) if company else None
+    if not target_company and user.get("role") != "admin" and user.get("company_name"):
+        target_company = user.get("company_name")
+        
+    sql = "SELECT id, candidate_id, face_photo_base64, photo_base64, aadhaar_front_base64, aadhaar_back_base64 FROM candidates"
+    params = ()
+    if target_company and target_company != "ALL":
+        sql += " WHERE LOWER(TRIM(company_name)) = LOWER(TRIM(%s))"
+        params = (target_company,)
+        
+    rows = execute_query(sql, params, fetch_all=True)
+    return JSONResponse(
+        content={"success": True, "photos": rows or []},
+        headers={"Cache-Control": "private, max-age=1800"}
+    )
+
 @app.get("/api/candidate/{candidate_id}")
 def get_candidate(candidate_id: str, company: Optional[str] = None, user=Depends(verify_token)):
     """Retrieve a single candidate profile with all full Base64 photos instantly.
@@ -1924,7 +1943,10 @@ def get_candidate(candidate_id: str, company: Optional[str] = None, user=Depends
         raise HTTPException(status_code=404, detail="Candidate not found.")
 
     attach_company_logos([candidate])
-    return {"success": True, "candidate": candidate}
+    return JSONResponse(
+        content={"success": True, "candidate": candidate},
+        headers={"Cache-Control": "private, max-age=1800"}
+    )
 
 class FaceVerifyRequest(BaseModel):
     live_photo: str

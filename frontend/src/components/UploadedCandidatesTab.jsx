@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { exportCandidatesToExcel } from '../utils/excelExporter';
 import { downloadCandidatePdf, downloadBulkPdfsZip } from '../utils/pdfGenerator';
-import { fetchAndCacheCandidate } from '../utils/candidateCache';
+import { fetchAndCacheCandidate, preloadAllCandidatePhotos } from '../utils/candidateCache';
 
 const UploadedCandidatesTab = ({ token, activeCompany, onOpenVerifyModal }) => {
   const [candidates, setCandidates] = useState([]);
@@ -84,6 +84,7 @@ const UploadedCandidatesTab = ({ token, activeCompany, onOpenVerifyModal }) => {
       const data = await res.json();
       if (data.success) {
         setCandidates(data.candidates || []);
+        preloadAllCandidatePhotos(token, activeCompany);
       }
     } catch (err) {
       console.error('Error fetching uploaded candidates:', err);
