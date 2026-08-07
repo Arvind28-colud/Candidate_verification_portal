@@ -12,12 +12,31 @@ import io
 import re
 import datetime
 import zipfile
-from jinja2 import Environment, FileSystemLoader
-from weasyprint import HTML
+
+try:
+    from jinja2 import Environment, FileSystemLoader
+    HAS_JINJA = True
+except Exception:
+    HAS_JINJA = False
+
+try:
+    from weasyprint import HTML
+    HAS_WEASYPRINT = True
+except Exception:
+    HAS_WEASYPRINT = False
+
+try:
+    from xhtml2pdf import pisa
+    HAS_XHTML2PDF = True
+except Exception:
+    HAS_XHTML2PDF = False
 
 gtk_path = r"C:\Program Files\GTK3-Runtime Win64\bin"
 if os.path.exists(gtk_path):
-    os.add_dll_directory(gtk_path)
+    try:
+        os.add_dll_directory(gtk_path)
+    except Exception:
+        pass
 
 def format_clean_name(name_str, fallback="-"):
     if not name_str or not isinstance(name_str, str):
@@ -159,8 +178,15 @@ def build_candidate_report_html(candidate, company_name=""):
 
 def generate_candidate_pdf_bytes(candidate_data, company_name=""):
     html_content = build_candidate_report_html(candidate_data, company_name)
-    # WeasyPrint renders full modern CSS and HTML directly into PDF bytes
-    return HTML(string=html_content).write_pdf()
+    if HAS_WEASYPRINT:
+        return HTML(string=html_content).write_pdf()
+    
+    out_buf = io.BytesIO()
+    if HAS_XHTML2PDF:
+        pisa.CreatePDF(io.StringIO(html_content), dest=out_buf)
+        return out_buf.getvalue()
+        
+    raise RuntimeError("No PDF generation engine (WeasyPrint / xhtml2pdf) available.")
 
 
 def generate_bulk_pdfs_zip_bytes(candidates_list, company_name="", district_name="ALL"):
