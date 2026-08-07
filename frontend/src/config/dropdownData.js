@@ -15,5 +15,6 @@ export const DESIGNATION_LIST = [
   "Timer",
   "Cctv/Networking",
   "Pst",
-  "Lieca"
+  "Lieca",
+  "Local Operator"
 ];
