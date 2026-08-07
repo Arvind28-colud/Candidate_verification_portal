@@ -1,5 +1,6 @@
 import os
 import requests
+import base64
 import uuid
 import logging
 from dotenv import load_dotenv
@@ -342,7 +343,6 @@ class SandboxService:
                             clean_p = photo_raw.strip()
                             if clean_p.startswith("http://") or clean_p.startswith("https://"):
                                 try:
-                                    import requests, base64
                                     p_res = requests.get(clean_p, timeout=8)
                                     if p_res.status_code == 200:
                                         p_b64 = base64.b64encode(p_res.content).decode("utf-8")
