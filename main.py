@@ -2550,5 +2550,6 @@ def get_otp_analytics(user=Depends(verify_token)):
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8001))
-    # Bind to 0.0.0.0 so the server is reachable externally across local network IP
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    # Enable reload only in local development, disable in production (Railway) to prevent performance drops or crashes
+    is_dev = not os.getenv("RAILWAY_ENVIRONMENT") and not os.getenv("RAILWAY_STATIC_URL") and os.getenv("NODE_ENV") != "production"
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=is_dev)
