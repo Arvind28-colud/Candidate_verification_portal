@@ -24,21 +24,21 @@ const PdfDownloadOptionModal = ({ isOpen, title, subtitle, onConfirm, onClose })
       <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative text-slate-900">
         
         {/* HEADER */}
-        <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-5 text-white flex items-center justify-between">
+        <div className="bg-black p-5 text-white flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
-              <Download className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-white">
+              <Download className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h3 className="text-base font-bold font-sans">{title || 'PDF Download Options'}</h3>
-              <p className="text-xs text-indigo-200 font-medium">{subtitle || 'Choose report page options before downloading'}</p>
+              <h3 className="text-base font-bold font-sans text-white">{title || 'PDF Download Options'}</h3>
+              <p className="text-xs text-slate-300 font-medium">{subtitle || 'Choose report page options before downloading'}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+            className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5 text-slate-300 hover:text-white" />
           </button>
         </div>
 
