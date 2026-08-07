@@ -150,7 +150,7 @@ const DashboardTab = ({ token, activeCompany: parentActiveCompany, initialStatus
     fetchData();
   }, [selectedCompany]);
 
-  // Extract all unique Company and Project options from admin API + fetched candidates
+  // Extract all unique Company options from admin API + fetched candidates (excluding project names)
   const allCompanyOptions = React.useMemo(() => {
     const map = new Map();
     (companyList || []).forEach((c) => {
@@ -161,9 +161,7 @@ const DashboardTab = ({ token, activeCompany: parentActiveCompany, initialStatus
     });
     (candidates || []).forEach((cand) => {
       const cName = (cand.company_name || '').trim();
-      const pName = (cand.reg_project_name || cand.project_name || '').trim();
       if (cName && !map.has(cName.toLowerCase())) map.set(cName.toLowerCase(), cName);
-      if (pName && !map.has(pName.toLowerCase())) map.set(pName.toLowerCase(), pName);
     });
     return Array.from(map.values()).sort();
   }, [companyList, candidates]);

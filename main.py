@@ -556,13 +556,9 @@ def list_companies(user=Depends(verify_token)):
             "created_at": u.get("created_at")
         })
 
-    # Also extract all unique company_name AND reg_project_name values from candidates table
+    # Also extract unique company_name values from candidates table (excluding project names)
     cand_comp_rows = execute_query(
         "SELECT DISTINCT company_name FROM candidates WHERE company_name IS NOT NULL AND TRIM(company_name) != ''",
-        fetch_all=True
-    ) or []
-    cand_proj_rows = execute_query(
-        "SELECT DISTINCT reg_project_name FROM candidates WHERE reg_project_name IS NOT NULL AND TRIM(reg_project_name) != ''",
         fetch_all=True
     ) or []
 
@@ -571,22 +567,20 @@ def list_companies(user=Depends(verify_token)):
         name = (row.get("company_name") or "").strip()
         if name and name.lower() not in existing_comp_names:
             extra_names.add(name)
-    for row in cand_proj_rows:
-        name = (row.get("reg_project_name") or "").strip()
-        if name and name.lower() not in existing_comp_names:
-            extra_names.add(name)
 
     virtual_id = -1
     for name in sorted(extra_names):
-        s = execute_query(
-            "SELECT COUNT(*) as total_candidates, SUM(CASE WHEN verification_status = 'VERIFIED' THEN 1 ELSE 0 END) as verified_candidates, SUM(CASE WHEN verification_status = 'FAILED' THEN 1 ELSE 0 END) as failed_candidates FROM candidates WHERE LOWER(TRIM(company_name)) = LOWER(TRIM(%s)) OR LOWER(TRIM(reg_project_name)) = LOWER(TRIM(%s))",
-            (name, name),
-            fetch_one=True
-        ) or {}
+        s = stats_map.get(name, {})
+        if not s:
+            s = execute_query(
+                "SELECT COUNT(*) as total_candidates, SUM(CASE WHEN verification_status = 'VERIFIED' THEN 1 ELSE 0 END) as verified_candidates, SUM(CASE WHEN verification_status = 'FAILED' THEN 1 ELSE 0 END) as failed_candidates FROM candidates WHERE LOWER(TRIM(company_name)) = LOWER(TRIM(%s))",
+                (name,),
+                fetch_one=True
+            ) or {}
 
         result.append({
             "id": virtual_id,
-            "username": f"project_{abs(virtual_id)}",
+            "username": f"company_{abs(virtual_id)}",
             "display_name": name,
             "company_name": name,
             "logo_base64": "",
