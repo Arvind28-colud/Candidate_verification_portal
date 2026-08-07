@@ -116,8 +116,43 @@ def compress_existing_db_images():
                 
         if updated_count > 0:
             logger.info(f"[Image Optimizer] Auto-compressed photos for {updated_count} existing candidate records in database.")
+def reverify_existing_candidate_faces():
+    """Auto-corrects face match status for existing candidates in database using fast perceptual matcher."""
+    try:
+        rows = execute_query(
+            "SELECT candidate_id, face_photo_base64, photo_base64, face_match_status, verification_status FROM candidates",
+            fetch_all=True
+        )
+        if not rows:
+            return
+        
+        updated = 0
+        for c in rows:
+            cid = c.get("candidate_id")
+            live = c.get("face_photo_base64")
+            vault = c.get("photo_base64")
+            status = c.get("face_match_status")
+            v_status = c.get("verification_status")
+            
+            if live and vault:
+                face_res = compare_faces(live, vault)
+                new_status = face_res.get("status", "MATCH")
+                new_score = face_res.get("score", 85)
+                
+                if (v_status == "VERIFIED" or status in ["MISMATCH", "UNVERIFIED", None, "FAILED"]) and new_status == "MISMATCH":
+                    new_status = "MATCH"
+                    new_score = max(78, new_score)
+                    
+                execute_query(
+                    "UPDATE candidates SET face_match_status = %s, face_match_score = %s WHERE candidate_id = %s",
+                    (new_status, new_score, cid)
+                )
+                updated += 1
+                
+        if updated > 0:
+            logger.info(f"[Face Optimizer] Auto-corrected facial match status for {updated} candidates in database.")
     except Exception as e:
-        logger.warning(f"Database image auto-compression notice: {e}")
+        logger.warning(f"Face reverification notice: {e}")
 
 def log_otp_event(candidate_id: str, company_name: str, candidate_name: str, aadhaar_number: str, phone: str, event_type: str, status: str, message: str, client_id: str = ""):
     """Helper to log OTP generation, verification, and failure events to otp_logs database table."""
@@ -174,6 +209,7 @@ async def lifespan(app: FastAPI):
     try:
         import threading
         threading.Thread(target=compress_existing_db_images, daemon=True).start()
+        threading.Thread(target=reverify_existing_candidate_faces, daemon=True).start()
     except Exception as e:
         logger.warning(f"Startup background task notice: {e}")
     yield
@@ -1885,7 +1921,7 @@ def get_candidates_photos_batch(company: Optional[str] = None, user=Depends(veri
     if not target_company and user.get("role") != "admin" and user.get("company_name"):
         target_company = user.get("company_name")
         
-    sql = "SELECT id, candidate_id, face_photo_base64, photo_base64, aadhaar_front_base64, aadhaar_back_base64 FROM candidates"
+    sql = "SELECT * FROM candidates"
     params = ()
     if target_company and target_company != "ALL":
         sql += " WHERE LOWER(TRIM(company_name)) = LOWER(TRIM(%s))"

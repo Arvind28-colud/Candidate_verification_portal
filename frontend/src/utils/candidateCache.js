@@ -36,9 +36,9 @@ export const fetchAndCacheCandidate = async (cand, token) => {
   const targetId = cand.id || cand.candidate_id;
   if (!targetId) return cand;
 
-  // Return instantly from cache if available
+  // Return instantly from cache if full details and photos are available
   const existing = getCachedCandidate(targetId);
-  if (existing && (existing.photo_base64 || existing.face_photo_base64 || existing.aadhaar_front_base64)) {
+  if (existing && (existing.verified_name || existing.verified_dob || existing.full_name) && (existing.photo_base64 || existing.face_photo_base64 || existing.aadhaar_front_base64)) {
     return existing;
   }
 

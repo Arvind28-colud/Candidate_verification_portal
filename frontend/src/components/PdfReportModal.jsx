@@ -8,6 +8,7 @@ const PdfReportModal = ({ candidate, onClose }) => {
   const [downloading, setDownloading] = useState(false);
   const [, setLoadingDetails] = useState(true);
   const [previewImage, setPreviewImage] = useState(null);
+  const [includePage2, setIncludePage2] = useState(false);
 
   // Synchronously initialize from cache for instant 0ms render
   const [fullCandidate, setFullCandidate] = useState(() => {
@@ -22,13 +23,14 @@ const PdfReportModal = ({ candidate, onClose }) => {
     const targetId = candidate?.id || candidate?.candidate_id;
     const cached = getCachedCandidate(targetId);
 
-    if (cached && (cached.photo_base64 || cached.face_photo_base64 || cached.aadhaar_front_base64)) {
+    if (cached && (cached.full_name || cached.verified_name) && (cached.photo_base64 || cached.face_photo_base64 || cached.aadhaar_front_base64)) {
       setFullCandidate(cached);
       setLoadingDetails(false);
-      return;
+    } else {
+      setLoadingDetails(true);
     }
 
-    setLoadingDetails(true);
+    // Fetch full candidate profile from backend to guarantee 100% complete text & photo data
     fetchAndCacheCandidate(candidate).then((updated) => {
       if (isMounted && updated) {
         setFullCandidate(updated);
@@ -41,14 +43,11 @@ const PdfReportModal = ({ candidate, onClose }) => {
     };
   }, [candidate]);
 
-  const [companyName] = useState(() => {
-    return (
-      activeCandidate?.company_name ||
-      activeCandidate?.organization ||
-      localStorage.getItem('report_company_name') ||
-      'Keen Sighted Workforce Services'
-    );
-  });
+  const companyName =
+    activeCandidate?.company_name ||
+    activeCandidate?.organization ||
+    localStorage.getItem('report_company_name') ||
+    '';
 
   const [companyLogo, setCompanyLogo] = useState(activeCandidate?.company_logo || '');
 
@@ -277,6 +276,16 @@ const PdfReportModal = ({ candidate, onClose }) => {
 
             {/* ACTION BUTTONS */}
             <div className="flex items-center space-x-3">
+              <label className="flex items-center space-x-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl cursor-pointer transition-colors border border-slate-300">
+                <input
+                  type="checkbox"
+                  checked={includePage2}
+                  onChange={(e) => setIncludePage2(e.target.checked)}
+                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                />
+                <span>Include Page 2 (Attachments)</span>
+              </label>
+
               <button
                 onClick={handleNativePrint}
                 className="px-3.5 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer shadow-xs"
@@ -520,87 +529,91 @@ const PdfReportModal = ({ candidate, onClose }) => {
                 {/* PAGE 1 FOOTER */}
                 <div className="pt-2 border-t border-slate-400 flex justify-between items-center text-[9px] font-sans text-black">
                   <span>{currentCompanyName} • Verification Report ({activeCandidate.candidate_id || 'ID0001'})</span>
-                  <span className="font-bold">Page 1 of 2</span>
+                  <span className="font-bold">{includePage2 ? 'Page 1 of 2' : 'Page 1 of 1'}</span>
                 </div>
               </div>
 
-              {/* PAGE BREAK MARKER */}
-              <div className="html2pdf__page-break pdf-page-break" style={{ height: '0px', margin: '0', padding: '0', pageBreakBefore: 'always' }} />
+              {includePage2 && (
+                <>
+                  {/* PAGE BREAK MARKER */}
+                  <div className="html2pdf__page-break pdf-page-break" style={{ height: '0px', margin: '0', padding: '0', pageBreakBefore: 'always' }} />
 
-              {/* ================= PAGE 2 ================= */}
-              <div className="pdf-page bg-white p-[10mm] text-black font-sans relative flex flex-col justify-between shadow-2xl w-[210mm] h-[285mm] box-border">
+                  {/* ================= PAGE 2 ================= */}
+                  <div className="pdf-page bg-white p-[10mm] text-black font-sans relative flex flex-col justify-between shadow-2xl w-[210mm] h-[285mm] box-border">
 
-                {/* TOP CONTENT WRAPPER */}
-                <div className="flex flex-col flex-1 space-y-2">
-                  {/* TOP HEADER */}
-                  <div className="text-center">
-                    {companyLogo ? (
-                      <div className="w-14 h-14 mx-auto mb-1 flex items-center justify-center">
-                        <img src={companyLogo} alt={currentCompanyName} className="max-h-full max-w-full object-contain" />
+                    {/* TOP CONTENT WRAPPER */}
+                    <div className="flex flex-col flex-1 space-y-2">
+                      {/* TOP HEADER */}
+                      <div className="text-center">
+                        {companyLogo ? (
+                          <div className="w-14 h-14 mx-auto mb-1 flex items-center justify-center">
+                            <img src={companyLogo} alt={currentCompanyName} className="max-h-full max-w-full object-contain" />
+                          </div>
+                        ) : null}
+                        <h2 className="text-xl font-bold uppercase tracking-wide text-black font-sans mb-1">
+                          {currentCompanyName}
+                        </h2>
+                        <div className="border-t border-b border-black py-1 mb-1">
+                          <p className="text-xs font-bold uppercase text-black tracking-wide font-sans">
+                            Candidate Identity &amp; Aadhaar e-KYC Verification Report
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] font-bold border-b border-black pb-1.5 text-black">
+                          <span><strong>Candidate ID:</strong> {activeCandidate.candidate_id || 'ID0001'}</span>
+                          <span>
+                            <strong>Status:</strong>{' '}
+                            {activeCandidate.verification_status === 'VERIFIED' ? (
+                              <span>VERIFIED e-KYC ✓</span>
+                            ) : activeCandidate.verification_status === 'FAILED' ? (
+                              <span>FAILED ✕</span>
+                            ) : (
+                              <span>PENDING ⚠</span>
+                            )}
+                          </span>
+                          <span><strong>Date:</strong> {new Date().toLocaleDateString()}</span>
+                        </div>
                       </div>
-                    ) : null}
-                    <h2 className="text-xl font-bold uppercase tracking-wide text-black font-sans mb-1">
-                      {currentCompanyName}
-                    </h2>
-                    <div className="border-t border-b border-black py-1 mb-1">
-                      <p className="text-xs font-bold uppercase text-black tracking-wide font-sans">
-                        Candidate Identity &amp; Aadhaar e-KYC Verification Report
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-between text-[11px] font-bold border-b border-black pb-1.5 text-black">
-                      <span><strong>Candidate ID:</strong> {activeCandidate.candidate_id || 'ID0001'}</span>
-                      <span>
-                        <strong>Status:</strong>{' '}
-                        {activeCandidate.verification_status === 'VERIFIED' ? (
-                          <span>VERIFIED e-KYC ✓</span>
-                        ) : activeCandidate.verification_status === 'FAILED' ? (
-                          <span>FAILED ✕</span>
-                        ) : (
-                          <span>PENDING ⚠</span>
-                        )}
-                      </span>
-                      <span><strong>Date:</strong> {new Date().toLocaleDateString()}</span>
-                    </div>
-                  </div>
 
-                  {/* DETAILS SUMMARY BOX ABOVE SECTION 5 */}
-                  <div className="border border-black bg-slate-50 p-2.5 my-1 text-[10px] font-sans">
-                    <div className="grid grid-cols-2 gap-2">
-                      <p><strong>Full Name:</strong> {activeCandidate.full_name || 'Ramesh Kumar'}</p>
-                      <p><strong>Father&apos;s Name:</strong> {regFather}</p>
-                      <p><strong>Mobile Number:</strong> {activeCandidate.phone || '9876543210'}</p>
-                      <p><strong>Aadhaar Number:</strong> XXXX-XXXX-{aadhaarLast4}</p>
+                      {/* DETAILS SUMMARY BOX ABOVE SECTION 5 */}
+                      <div className="border border-black bg-slate-50 p-2.5 my-1 text-[10px] font-sans">
+                        <div className="grid grid-cols-2 gap-2">
+                          <p><strong>Full Name:</strong> {activeCandidate.full_name || 'Ramesh Kumar'}</p>
+                          <p><strong>Father&apos;s Name:</strong> {regFather}</p>
+                          <p><strong>Mobile Number:</strong> {activeCandidate.phone || '9876543210'}</p>
+                          <p><strong>Aadhaar Number:</strong> XXXX-XXXX-{aadhaarLast4}</p>
+                        </div>
+                      </div>
+
+                      {/* 5. POLICE OFFICER HANDWRITTEN NOTES & REMARKS */}
+                      <div className="bg-black text-white text-[11px] font-bold uppercase tracking-wider px-2 py-1 font-sans">
+                        5. Police Officer Handwritten Notes &amp; Remarks
+                      </div>
+
+                      {/* REMARKS BOX */}
+                      <div className="border border-black bg-white flex-1 min-h-[170mm]"></div>
                     </div>
-                  </div>
 
-                  {/* 5. POLICE OFFICER HANDWRITTEN NOTES & REMARKS */}
-                  <div className="bg-black text-white text-[11px] font-bold uppercase tracking-wider px-2 py-1 font-sans">
-                    5. Police Officer Handwritten Notes &amp; Remarks
-                  </div>
+                    {/* BOTTOM SIGNATURE & FOOTER WRAPPER */}
+                    <div className="pt-2 space-y-2 shrink-0">
+                      <div className="text-[11px] flex justify-between items-end font-sans font-bold text-black pt-2">
+                        <div className="flex items-end space-x-2">
+                          <span>Verifying Officer Name &amp; Badge ID:</span>
+                          <div className="border-b border-black w-[250px]"></div>
+                        </div>
+                        <div>
+                          <p>Date: ______ / ______ / 2026</p>
+                        </div>
+                      </div>
 
-                  {/* REMARKS BOX */}
-                  <div className="border border-black bg-white flex-1 min-h-[170mm]"></div>
-                </div>
-
-                {/* BOTTOM SIGNATURE & FOOTER WRAPPER */}
-                <div className="pt-2 space-y-2 shrink-0">
-                  <div className="text-[11px] flex justify-between items-end font-sans font-bold text-black pt-2">
-                    <div className="flex items-end space-x-2">
-                      <span>Verifying Officer Name &amp; Badge ID:</span>
-                      <div className="border-b border-black w-[250px]"></div>
-                    </div>
-                    <div>
-                      <p>Date: ______ / ______ / 2026</p>
+                      {/* PAGE 2 FOOTER */}
+                      <div className="pt-2 border-t border-slate-400 flex justify-between items-center text-[9px] font-sans text-black">
+                        <span>{currentCompanyName} • Verification Report ({activeCandidate.candidate_id || 'ID0001'})</span>
+                        <span className="font-bold">Page 2 of 2</span>
+                      </div>
                     </div>
                   </div>
-
-                  {/* PAGE 2 FOOTER */}
-                  <div className="pt-2 border-t border-slate-400 flex justify-between items-center text-[9px] font-sans text-black">
-                    <span>{currentCompanyName} • Verification Report ({activeCandidate.candidate_id || 'ID0001'})</span>
-                    <span className="font-bold">Page 2 of 2</span>
-                  </div>
-                </div>
-              </div>
+                </>
+              )}
 
             </div>
           </div>

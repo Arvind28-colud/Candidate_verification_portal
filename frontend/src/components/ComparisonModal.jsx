@@ -14,7 +14,7 @@ const ComparisonModal = ({ candidate, onClose, onOpenPdfModal }) => {
 
   const activeCandidate = fullCandidate || candidate;
   
-  const compName = activeCandidate?.company_name || activeCandidate?.organization || localStorage.getItem('report_company_name') || 'Keen Sighted Workforce Services';
+  const compName = activeCandidate?.company_name || activeCandidate?.organization || localStorage.getItem('report_company_name') || '';
   const [companyLogo, setCompanyLogo] = useState(activeCandidate?.company_logo || '');
 
   useEffect(() => {
@@ -22,11 +22,11 @@ const ComparisonModal = ({ candidate, onClose, onOpenPdfModal }) => {
     const targetId = candidate?.id || candidate?.candidate_id;
     const cached = getCachedCandidate(targetId);
 
-    if (cached && (cached.photo_base64 || cached.face_photo_base64 || cached.aadhaar_front_base64)) {
+    if (cached && (cached.full_name || cached.verified_name) && (cached.photo_base64 || cached.face_photo_base64 || cached.aadhaar_front_base64)) {
       setFullCandidate(cached);
-      return;
     }
 
+    // Always fetch full details from backend to ensure 100% complete data
     fetchAndCacheCandidate(candidate).then((updated) => {
       if (isMounted && updated) {
         setFullCandidate(updated);
