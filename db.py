@@ -69,8 +69,9 @@ def get_db_connection():
 
 def init_db():
     """Auto-initialize 'candidates' and 'users' tables in the database if they don't exist."""
-    conn, db_type = get_db_connection()
+    global USING_MYSQL, _MYSQL_UNAVAILABLE
     try:
+        conn, db_type = get_db_connection()
         cursor = conn.cursor()
         if db_type == "mysql":
             # First create database if missing
@@ -79,13 +80,17 @@ def init_db():
                     host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASSWORD, connect_timeout=3
                 )
                 with temp_conn.cursor() as temp_cursor:
-                    temp_cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME} CHARACTER SET utf8mb4;")
+                    temp_cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}` CHARACTER SET utf8mb4;")
                 temp_conn.close()
             except Exception as _ex:
                 logger.warning(f"Database pre-creation notice: {_ex}")
 
             # Create MySQL Tables with complete modern schema
-            cursor.execute(f"USE {DB_NAME};")
+            try:
+                cursor.execute(f"USE `{DB_NAME}`;")
+            except Exception as _ue:
+                logger.warning(f"Database USE notice: {_ue}")
+
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS candidates (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -98,40 +103,43 @@ def init_db():
                     reg_dob VARCHAR(50),
                     reg_gender VARCHAR(20),
                     reg_address TEXT,
-                    father_name VARCHAR(255),
+                    reg_project_name VARCHAR(255) DEFAULT 'Site Verification Project',
                     reg_father_name VARCHAR(255),
+                    reg_state VARCHAR(100),
+                    reg_district VARCHAR(100),
+                    reg_designation VARCHAR(100),
                     face_photo_base64 LONGTEXT,
+                    photo_base64 LONGTEXT,
                     aadhaar_front_base64 LONGTEXT,
                     aadhaar_back_base64 LONGTEXT,
-                    verification_status VARCHAR(20) DEFAULT 'PENDING',
-                    client_ref_id VARCHAR(100),
+                    verification_status VARCHAR(50) DEFAULT 'PENDING',
+                    verified_at DATETIME,
+                    card_ocr_status VARCHAR(50) DEFAULT 'UNVERIFIED',
+                    face_match_status VARCHAR(50) DEFAULT 'UNVERIFIED',
+                    face_match_score INT DEFAULT 0,
+                    client_ref_id VARCHAR(255),
                     verified_name VARCHAR(255),
                     verified_father_name VARCHAR(255),
                     verified_dob VARCHAR(50),
-                    verified_gender VARCHAR(10),
+                    verified_gender VARCHAR(20),
                     verified_address TEXT,
-                    photo_base64 LONGTEXT,
-                    card_ocr_status VARCHAR(20) DEFAULT 'PENDING',
-                    card_ocr_name VARCHAR(255) DEFAULT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    verified_at TIMESTAMP NULL
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY (candidate_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """)
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id INT AUTO_INCREMENT PRIMARY KEY,
-                    username VARCHAR(100) NOT NULL UNIQUE,
+                    username VARCHAR(100) UNIQUE NOT NULL,
                     password_hash VARCHAR(255) NOT NULL,
-                    display_name VARCHAR(255),
-                    role VARCHAR(20) DEFAULT 'company_admin',
+                    display_name VARCHAR(255) NOT NULL,
+                    role VARCHAR(50) NOT NULL DEFAULT 'user',
                     company_name VARCHAR(255),
+                    company_token VARCHAR(64) UNIQUE,
                     logo_base64 LONGTEXT,
-                    sender_mobile VARCHAR(20),
-                    link_enabled INT DEFAULT 1,
-                    hide_company_name INT DEFAULT 0,
-                    company_token VARCHAR(36) DEFAULT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    hide_company_name TINYINT(1) DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """)
 
@@ -146,39 +154,19 @@ def init_db():
                     event_type VARCHAR(50),
                     status VARCHAR(50),
                     message TEXT,
-                    client_id VARCHAR(100),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    client_id VARCHAR(255),
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """)
-            # Safe migrations for MySQL (existing DBs)
-            for migration_sql in [
-                "ALTER TABLE users ADD COLUMN logo_base64 LONGTEXT DEFAULT NULL",
-                "ALTER TABLE users ADD COLUMN sender_mobile VARCHAR(20) DEFAULT NULL",
-                "ALTER TABLE users ADD COLUMN link_enabled INT DEFAULT 1",
-                "ALTER TABLE users ADD COLUMN hide_company_name INT DEFAULT 0",
-                "ALTER TABLE users ADD COLUMN company_token VARCHAR(36) DEFAULT NULL",
-                "ALTER TABLE candidates ADD COLUMN card_ocr_status VARCHAR(20) DEFAULT 'PENDING'",
-                "ALTER TABLE candidates ADD COLUMN card_ocr_name VARCHAR(255) DEFAULT NULL",
-                "ALTER TABLE candidates ADD COLUMN face_match_status VARCHAR(50) DEFAULT NULL",
-                "ALTER TABLE candidates ADD COLUMN face_match_score INT DEFAULT NULL",
-                "ALTER TABLE candidates ADD COLUMN reg_state VARCHAR(100) DEFAULT NULL",
-                "ALTER TABLE candidates ADD COLUMN reg_district VARCHAR(100) DEFAULT NULL",
-                "ALTER TABLE candidates ADD COLUMN reg_designation VARCHAR(100) DEFAULT NULL",
-                "ALTER TABLE candidates ADD COLUMN reg_project_name VARCHAR(255) DEFAULT NULL"
-            ]:
-                try:
-                    cursor.execute(migration_sql)
-                    conn.commit()
-                except Exception:
-                    pass  # Column already exists — safe to ignore
+
             conn.commit()
-            logger.info("MySQL 'candidates' & 'users' tables verified/initialized successfully.")
+
         else:
-            # Create SQLite Tables with complete modern schema
+            # SQLite fallback schema
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS candidates (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    candidate_id TEXT NOT NULL,
+                    candidate_id TEXT NOT NULL UNIQUE,
                     company_name TEXT DEFAULT 'Keen Sighted Workforce Services',
                     full_name TEXT NOT NULL,
                     email TEXT,
@@ -187,44 +175,42 @@ def init_db():
                     reg_dob TEXT,
                     reg_gender TEXT,
                     reg_address TEXT,
-                    father_name TEXT,
+                    reg_project_name TEXT DEFAULT 'Site Verification Project',
                     reg_father_name TEXT,
+                    reg_state TEXT,
+                    reg_district TEXT,
+                    reg_designation TEXT,
                     face_photo_base64 TEXT,
+                    photo_base64 TEXT,
                     aadhaar_front_base64 TEXT,
                     aadhaar_back_base64 TEXT,
                     verification_status TEXT DEFAULT 'PENDING',
+                    verified_at TEXT,
+                    card_ocr_status TEXT DEFAULT 'UNVERIFIED',
+                    face_match_status TEXT DEFAULT 'UNVERIFIED',
+                    face_match_score INTEGER DEFAULT 0,
                     client_ref_id TEXT,
                     verified_name TEXT,
                     verified_father_name TEXT,
                     verified_dob TEXT,
                     verified_gender TEXT,
                     verified_address TEXT,
-                    photo_base64 TEXT,
-                    card_ocr_status TEXT DEFAULT 'PENDING',
-                    card_ocr_name TEXT,
-                    reg_state TEXT,
-                    reg_district TEXT,
-                    reg_designation TEXT,
-                    reg_project_name TEXT,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    verified_at DATETIME
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
             """)
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT NOT NULL UNIQUE,
+                    username TEXT UNIQUE NOT NULL,
                     password_hash TEXT NOT NULL,
-                    display_name TEXT,
-                    role TEXT DEFAULT 'company_admin',
+                    display_name TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'user',
                     company_name TEXT,
+                    company_token TEXT UNIQUE,
                     logo_base64 TEXT,
-                    sender_mobile TEXT,
-                    link_enabled INTEGER DEFAULT 1,
                     hide_company_name INTEGER DEFAULT 0,
-                    company_token TEXT DEFAULT NULL,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
             """)
 
@@ -240,16 +226,37 @@ def init_db():
                     status TEXT,
                     message TEXT,
                     client_id TEXT,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
             """)
-            # Safe migrations for SQLite (existing DBs)
+
+            conn.commit()
+
+        cursor.close()
+        conn.close()
+        logger.info(f"Database successfully initialized ({db_type.upper()}).")
+
+        # Run column migration checks safely
+        run_column_migrations()
+        seed_default_admin_user()
+
+    except Exception as e:
+        logger.error(f"Error during init_db ({e}). Falling back to local SQLite database.")
+        _MYSQL_UNAVAILABLE = True
+        USING_MYSQL = False
+        try:
+            conn = sqlite3.connect("candidate_db.sqlite")
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS candidates (id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id TEXT UNIQUE);")
+            conn.commit()
+            conn.close()
+        except Exception as _sqle:
+            logger.error(f"SQLite fallback error: {_sqle}")  # Safe migrations for SQLite (existing DBs)
             for migration_sql in [
                 "ALTER TABLE users ADD COLUMN logo_base64 TEXT",
                 "ALTER TABLE users ADD COLUMN sender_mobile TEXT",
                 "ALTER TABLE users ADD COLUMN link_enabled INTEGER DEFAULT 1",
                 "ALTER TABLE users ADD COLUMN hide_company_name INTEGER DEFAULT 0",
-                "ALTER TABLE users ADD COLUMN company_token TEXT",
                 "ALTER TABLE candidates ADD COLUMN card_ocr_status TEXT DEFAULT 'PENDING'",
                 "ALTER TABLE candidates ADD COLUMN card_ocr_name TEXT",
                 "ALTER TABLE candidates ADD COLUMN reg_state TEXT",
