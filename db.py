@@ -37,42 +37,45 @@ USING_MYSQL = True
 _MYSQL_UNAVAILABLE = False
 
 def get_db_connection():
-    """Attempt MySQL connection; fallback to local SQLite DB if MySQL is unreachable."""
+    """Attempt MySQL connection strictly with PyMySQL proxy compatibility and retries."""
     global USING_MYSQL, _MYSQL_UNAVAILABLE
 
-    if _MYSQL_UNAVAILABLE:
-        USING_MYSQL = False
-        conn = sqlite3.connect("candidate_db.sqlite")
-        conn.row_factory = sqlite3.Row
-        return conn, "sqlite"
+    import time
+    ssl_modes = [{"ssl_disabled": True}, None]
 
-    ssl_modes = [None, {"ssl_disabled": True}] if ("proxy.rlwy.net" in DB_HOST or "railway" in DB_HOST) else [None]
+    last_err = None
+    for attempt in range(1, 4):
+        for ssl_cfg in ssl_modes:
+            try:
+                conn_kwargs = {
+                    "host": DB_HOST,
+                    "port": DB_PORT,
+                    "user": DB_USER,
+                    "password": DB_PASSWORD,
+                    "database": DB_NAME,
+                    "charset": "utf8mb4",
+                    "cursorclass": pymysql.cursors.DictCursor,
+                    "connect_timeout": 15,
+                    "read_timeout": 15,
+                    "write_timeout": 15,
+                    "autocommit": True
+                }
+                if ssl_cfg:
+                    conn_kwargs["ssl"] = ssl_cfg
 
-    for ssl_cfg in ssl_modes:
-        try:
-            conn_kwargs = {
-                "host": DB_HOST,
-                "port": DB_PORT,
-                "user": DB_USER,
-                "password": DB_PASSWORD,
-                "database": DB_NAME,
-                "charset": "utf8mb4",
-                "cursorclass": pymysql.cursors.DictCursor,
-                "connect_timeout": 6
-            }
-            if ssl_cfg:
-                conn_kwargs["ssl"] = ssl_cfg
+                connection = pymysql.connect(**conn_kwargs)
+                USING_MYSQL = True
+                _MYSQL_UNAVAILABLE = False
+                logger.info(f"[DB Success] Successfully connected to MySQL database on '{DB_HOST}:{DB_PORT}'!")
+                return connection, "mysql"
+            except Exception as e:
+                last_err = e
+                logger.warning(f"[DB Attempt #{attempt}] MySQL connection to {DB_HOST}:{DB_PORT} failed ({e}). Retrying...")
+                time.sleep(0.5)
 
-            connection = pymysql.connect(**conn_kwargs)
-            USING_MYSQL = True
-            _MYSQL_UNAVAILABLE = False
-            return connection, "mysql"
-        except Exception as e:
-            logger.info(f"MySQL connection attempt failed ({e}).")
-
-    logger.info(f"MySQL not available. Using local SQLite database candidate_db.sqlite.")
+    logger.error(f"[DB Error] All MySQL connection attempts to {DB_HOST}:{DB_PORT} failed ({last_err}). Falling back to SQLite.")
     USING_MYSQL = False
-    _MYSQL_UNAVAILABLE = True
+    _MYSQL_UNAVAILABLE = False  # Reset flag so next request retries MySQL
     conn = sqlite3.connect("candidate_db.sqlite")
     conn.row_factory = sqlite3.Row
     return conn, "sqlite"
