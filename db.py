@@ -15,8 +15,15 @@ logger = logging.getLogger("db")
 def resolve_db_credentials():
     """Dynamically resolves MySQL credentials from environment, preferring Railway private internal networking."""
     private_url = os.getenv("MYSQL_PRIVATE_URL") or os.getenv("MYSQLPRIVATEURL")
-    url_to_parse = private_url or os.getenv("MYSQL_URL") or os.getenv("DATABASE_URL") or os.getenv("MYSQL_PUBLIC_URL")
-    
+    is_railway = bool(os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_SERVICE_ID"))
+
+    # Only parse MYSQL_URL / DATABASE_URL if it does not point to deleted public proxy.rlwy.net
+    url_to_parse = private_url
+    if not url_to_parse:
+        raw_url = os.getenv("MYSQL_URL") or os.getenv("DATABASE_URL") or os.getenv("MYSQL_PUBLIC_URL")
+        if raw_url and not ("proxy.rlwy.net" in raw_url or "railway.app" in raw_url):
+            url_to_parse = raw_url
+
     host = os.getenv("MYSQLHOST") or os.getenv("MYSQL_HOST") or os.getenv("DB_HOST", "localhost")
     port = int(os.getenv("MYSQLPORT") or os.getenv("MYSQL_PORT") or os.getenv("DB_PORT", 3306))
     user = os.getenv("MYSQLUSER") or os.getenv("MYSQL_USER") or os.getenv("DB_USER", "root")
@@ -41,6 +48,13 @@ def resolve_db_credentials():
                     database = clean_path
         except Exception as _e:
             logger.warning(f"Error parsing MySQL URL: {_e}")
+
+    # If running on Railway and host is pointing to deleted public proxy.rlwy.net, override host to Railway private network
+    if is_railway and ("proxy.rlwy.net" in host or "railway.app" in host or host == "localhost"):
+        internal_host = os.getenv("MYSQLHOST") or os.getenv("MYSQL_HOST") or "mysql.railway.internal"
+        if "proxy.rlwy.net" not in internal_host:
+            host = internal_host
+            port = 3306
 
     return host, port, user, password, database
 
