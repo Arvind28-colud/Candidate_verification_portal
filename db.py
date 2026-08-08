@@ -18,8 +18,8 @@ DB_USER = os.getenv("MYSQLUSER") or os.getenv("DB_USER", "root")
 DB_PASSWORD = os.getenv("MYSQLPASSWORD") or os.getenv("DB_PASSWORD", "")
 DB_NAME = os.getenv("MYSQLDATABASE") or os.getenv("DB_NAME", "candidate_db")
 
-# Parse Railway MYSQL_URL / MYSQL_PUBLIC_URL if present
-mysql_url_env = os.getenv("MYSQL_URL") or os.getenv("MYSQL_PUBLIC_URL") or os.getenv("DATABASE_URL")
+# Parse Railway MYSQL_PRIVATE_URL / MYSQL_URL / MYSQL_PUBLIC_URL if present
+mysql_url_env = os.getenv("MYSQL_PRIVATE_URL") or os.getenv("MYSQL_URL") or os.getenv("MYSQL_PUBLIC_URL") or os.getenv("DATABASE_URL")
 if mysql_url_env and mysql_url_env.startswith("mysql"):
     try:
         from urllib.parse import urlparse
