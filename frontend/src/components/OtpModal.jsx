@@ -54,13 +54,23 @@ const OtpModal = ({ candidate, token, onClose, onSuccess }) => {
         throw new Error(data.detail || 'Failed to dispatch OTP.');
       }
 
+      // 1. Overwrite client_id with newly returned client_id
       setClientId(data.client_id);
+      
+      // 2. Reset OTP input box so candidate enters fresh 6-digit code
+      setOtp(['', '', '', '', '', '']);
+      if (inputRefs.current[0]) {
+        inputRefs.current[0].focus();
+      }
+
       if (data.masked_mobile) {
         setMaskedMobile(data.masked_mobile);
       }
       setMessage('Aadhaar OTP has been dispatched by UIDAI to your registered mobile number.');
       setOtpDispatched(true);
       setValidityTimer(150);
+      
+      // 3. Disable Resend button for 45s cooldown after click
       setResendCooldown(45);
     } catch (err) {
       setError(err.message);

@@ -328,11 +328,18 @@ const PublicCandidateVerification = ({ candidateId: initialCandidateId, companyN
         throw new Error(data.detail || data.message || 'Failed to generate Aadhaar OTP.');
       }
 
+      // 1. Overwrite client_id with newly returned client_id
       setClientId(data.client_id);
+
+      // 2. Reset OTP input box for fresh 6-digit code
+      setOtpCode('');
+
       if (data.masked_mobile) {
         setMaskedMobile(data.masked_mobile);
       }
       setOtpSent(true);
+
+      // 3. Disable Resend button for 45s cooldown after click
       setResendCooldown(45);
     } catch (err) {
       alert(`OTP Notice: ${err.message}`);
