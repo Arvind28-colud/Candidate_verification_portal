@@ -15,7 +15,7 @@ logger = logging.getLogger("db")
 def resolve_db_credentials():
     """Dynamically resolves MySQL credentials from environment, preferring Railway private internal networking."""
     private_url = os.getenv("MYSQL_PRIVATE_URL") or os.getenv("MYSQLPRIVATEURL")
-    url_to_parse = private_url or os.getenv("MYSQL_URL") or os.getenv("DATABASE_URL")
+    url_to_parse = private_url or os.getenv("MYSQL_URL") or os.getenv("DATABASE_URL") or os.getenv("MYSQL_PUBLIC_URL")
     
     host = os.getenv("MYSQLHOST") or os.getenv("MYSQL_HOST") or os.getenv("DB_HOST", "localhost")
     port = int(os.getenv("MYSQLPORT") or os.getenv("MYSQL_PORT") or os.getenv("DB_PORT", 3306))
@@ -27,19 +27,20 @@ def resolve_db_credentials():
         try:
             from urllib.parse import urlparse
             _parsed = urlparse(url_to_parse)
-            host = _parsed.hostname or host
-            port = _parsed.port or port
-            user = _parsed.username or user
-            password = _parsed.password or password
-            database = (_parsed.path or "").strip("/") or database
+            if _parsed.hostname:
+                host = _parsed.hostname
+            if _parsed.port:
+                port = _parsed.port
+            if _parsed.username:
+                user = _parsed.username
+            if _parsed.password:
+                password = _parsed.password
+            if _parsed.path:
+                clean_path = _parsed.path.strip("/")
+                if clean_path:
+                    database = clean_path
         except Exception as _e:
             logger.warning(f"Error parsing MySQL URL: {_e}")
-
-    # If host looks like an external public proxy while running on Railway, target internal network mysql.railway.internal
-    if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_SERVICE_ID"):
-        if "rlwy.net" in host or "railway.app" in host:
-            host = os.getenv("MYSQLHOST") or "mysql.railway.internal"
-            port = 3306
 
     return host, port, user, password, database
 
@@ -49,12 +50,11 @@ USING_MYSQL = True
 _MYSQL_UNAVAILABLE = False
 
 def get_db_connection():
-    """Attempt MySQL connection; tries private Railway host and falls back smoothly."""
+    """Attempt MySQL connection using resolved credentials."""
     global USING_MYSQL, _MYSQL_UNAVAILABLE
 
     host, port, user, password, database = resolve_db_credentials()
 
-    # Attempt 1: Try resolved credentials
     try:
         connection = pymysql.connect(
             host=host,
@@ -64,38 +64,18 @@ def get_db_connection():
             database=database,
             charset='utf8mb4',
             cursorclass=pymysql.cursors.DictCursor,
-            connect_timeout=3
+            connect_timeout=5
         )
         USING_MYSQL = True
         _MYSQL_UNAVAILABLE = False
         return connection, "mysql"
-    except Exception as e1:
-        logger.warning(f"Primary MySQL connection to {host}:{port} failed ({e1}). Trying Railway internal fallback 'mysql.railway.internal'...")
-
-    # Attempt 2: Fallback to Railway internal private network 'mysql.railway.internal'
-    try:
-        connection = pymysql.connect(
-            host="mysql.railway.internal",
-            port=3306,
-            user=user,
-            password=password,
-            database=database,
-            charset='utf8mb4',
-            cursorclass=pymysql.cursors.DictCursor,
-            connect_timeout=3
-        )
-        USING_MYSQL = True
-        _MYSQL_UNAVAILABLE = False
-        logger.info("Successfully connected to Railway private internal database (mysql.railway.internal:3306)!")
-        return connection, "mysql"
-    except Exception as e2:
-        logger.error(f"Private MySQL connection to mysql.railway.internal failed ({e2}). Using local SQLite fallback.")
-
-    USING_MYSQL = False
-    _MYSQL_UNAVAILABLE = True
-    conn = sqlite3.connect("candidate_db.sqlite")
-    conn.row_factory = sqlite3.Row
-    return conn, "sqlite"
+    except Exception as e:
+        logger.error(f"MySQL connection to {host}:{port} failed ({e}). Falling back to local SQLite.")
+        USING_MYSQL = False
+        _MYSQL_UNAVAILABLE = True
+        conn = sqlite3.connect("candidate_db.sqlite")
+        conn.row_factory = sqlite3.Row
+        return conn, "sqlite"
 
 def init_db():
     """Auto-initialize 'candidates', 'users', and 'otp_logs' tables in database."""
