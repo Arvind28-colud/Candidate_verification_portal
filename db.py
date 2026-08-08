@@ -55,7 +55,7 @@ USING_MYSQL = True
 _MYSQL_UNAVAILABLE = False
 
 def get_db_connection():
-    """Attempt MySQL connection using resolved credentials with automatic fallback."""
+    """Attempt MySQL connection using resolved credentials with multi-host and SSL fallback options."""
     global USING_MYSQL, _MYSQL_UNAVAILABLE
 
     host, port, user, password, database = resolve_db_credentials()
@@ -70,26 +70,34 @@ def get_db_connection():
 
     last_error = None
     for h in hosts_to_try:
-        try:
-            target_port = port if h == host else 3306
-            logger.info(f"[DB Resolver] Attempting MySQL connection to host='{h}', port={target_port}, user='{user}', database='{database}'...")
-            connection = pymysql.connect(
-                host=h,
-                port=target_port,
-                user=user,
-                password=password,
-                database=database,
-                charset='utf8mb4',
-                cursorclass=pymysql.cursors.DictCursor,
-                connect_timeout=6
-            )
-            USING_MYSQL = True
-            _MYSQL_UNAVAILABLE = False
-            logger.info(f"[DB Success] Successfully connected to MySQL database on '{h}:{target_port}'!")
-            return connection, "mysql"
-        except Exception as e:
-            last_error = e
-            logger.warning(f"MySQL connection to '{h}:{target_port}' failed ({e}).")
+        target_port = port if h == host else 3306
+        for ssl_mode in [None, {"ssl_disabled": True}]:
+            try:
+                ssl_label = " (no-ssl)" if ssl_mode else ""
+                logger.info(f"[DB Resolver] Attempting MySQL connection to host='{h}', port={target_port}, user='{user}', database='{database}'{ssl_label}...")
+                conn_kwargs = {
+                    "host": h,
+                    "port": target_port,
+                    "user": user,
+                    "password": password,
+                    "database": database,
+                    "charset": "utf8mb4",
+                    "cursorclass": pymysql.cursors.DictCursor,
+                    "connect_timeout": 8
+                }
+                if ssl_mode:
+                    conn_kwargs["ssl"] = ssl_mode
+
+                connection = pymysql.connect(**conn_kwargs)
+                connection.ping(reconnect=True)
+                
+                USING_MYSQL = True
+                _MYSQL_UNAVAILABLE = False
+                logger.info(f"[DB Success] Successfully connected to MySQL database on '{h}:{target_port}'{ssl_label}!")
+                return connection, "mysql"
+            except Exception as e:
+                last_error = e
+                logger.warning(f"MySQL connection to '{h}:{target_port}'{ssl_label} failed ({e}).")
 
     logger.error(f"All MySQL connection attempts failed ({last_error}). Falling back to local SQLite.")
     USING_MYSQL = False
