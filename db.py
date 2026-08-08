@@ -18,7 +18,6 @@ def resolve_db_credentials():
         os.getenv("MYSQL_PUBLIC_URL") or 
         os.getenv("MYSQL_URL") or 
         os.getenv("MYSQL_PRIVATE_URL") or 
-        os.getenv("MYSQLPRIVATEURL") or 
         os.getenv("DATABASE_URL")
     )
     
@@ -55,56 +54,35 @@ USING_MYSQL = True
 _MYSQL_UNAVAILABLE = False
 
 def get_db_connection():
-    """Attempt MySQL connection using resolved credentials with multi-host and SSL fallback options."""
+    """Attempt MySQL connection using resolved credentials."""
     global USING_MYSQL, _MYSQL_UNAVAILABLE
 
     host, port, user, password, database = resolve_db_credentials()
-    
-    hosts_to_try = [host]
-    is_railway = bool(os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_SERVICE_ID"))
-    if is_railway:
-        if "mysql.railway.internal" not in hosts_to_try:
-            hosts_to_try.append("mysql.railway.internal")
-        if "mysql" not in hosts_to_try:
-            hosts_to_try.append("mysql")
+    logger.info(f"[DB] Connecting to MySQL at host='{host}', port={port}, user='{user}', database='{database}'...")
 
-    last_error = None
-    for h in hosts_to_try:
-        target_port = port if h == host else 3306
-        for ssl_mode in [None, {"ssl_disabled": True}]:
-            try:
-                ssl_label = " (no-ssl)" if ssl_mode else ""
-                logger.info(f"[DB Resolver] Attempting MySQL connection to host='{h}', port={target_port}, user='{user}', database='{database}'{ssl_label}...")
-                conn_kwargs = {
-                    "host": h,
-                    "port": target_port,
-                    "user": user,
-                    "password": password,
-                    "database": database,
-                    "charset": "utf8mb4",
-                    "cursorclass": pymysql.cursors.DictCursor,
-                    "connect_timeout": 8
-                }
-                if ssl_mode:
-                    conn_kwargs["ssl"] = ssl_mode
-
-                connection = pymysql.connect(**conn_kwargs)
-                connection.ping(reconnect=True)
-                
-                USING_MYSQL = True
-                _MYSQL_UNAVAILABLE = False
-                logger.info(f"[DB Success] Successfully connected to MySQL database on '{h}:{target_port}'{ssl_label}!")
-                return connection, "mysql"
-            except Exception as e:
-                last_error = e
-                logger.warning(f"MySQL connection to '{h}:{target_port}'{ssl_label} failed ({e}).")
-
-    logger.error(f"All MySQL connection attempts failed ({last_error}). Falling back to local SQLite.")
-    USING_MYSQL = False
-    _MYSQL_UNAVAILABLE = True
-    conn = sqlite3.connect("candidate_db.sqlite")
-    conn.row_factory = sqlite3.Row
-    return conn, "sqlite"
+    try:
+        connection = pymysql.connect(
+            host=host,
+            port=port,
+            user=user,
+            password=password,
+            database=database,
+            charset='utf8mb4',
+            cursorclass=pymysql.cursors.DictCursor,
+            connect_timeout=10,
+            read_timeout=10,
+            write_timeout=10
+        )
+        USING_MYSQL = True
+        _MYSQL_UNAVAILABLE = False
+        return connection, "mysql"
+    except Exception as e:
+        logger.error(f"MySQL connection to {host}:{port} failed ({e}). Falling back to local SQLite.")
+        USING_MYSQL = False
+        _MYSQL_UNAVAILABLE = True
+        conn = sqlite3.connect("candidate_db.sqlite")
+        conn.row_factory = sqlite3.Row
+        return conn, "sqlite"
 
 def init_db():
     """Auto-initialize 'candidates', 'users', and 'otp_logs' tables in database."""
