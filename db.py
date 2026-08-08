@@ -54,39 +54,52 @@ USING_MYSQL = True
 _MYSQL_UNAVAILABLE = False
 
 def get_db_connection():
-    """Attempt MySQL connection using resolved credentials."""
+    """Attempt MySQL connection using resolved credentials with multi-host and SSL fallback options."""
     global USING_MYSQL, _MYSQL_UNAVAILABLE
 
     host, port, user, password, database = resolve_db_credentials()
     logger.info(f"[DB] Connecting to MySQL at host='{host}', port={port}, user='{user}', database='{database}'...")
 
-    try:
-        connection = pymysql.connect(
-            host=host,
-            port=port,
-            user=user,
-            password=password,
-            database=database,
-            charset='utf8mb4',
-            cursorclass=pymysql.cursors.DictCursor,
-            connect_timeout=10,
-            read_timeout=10,
-            write_timeout=10
-        )
-        USING_MYSQL = True
-        _MYSQL_UNAVAILABLE = False
-        return connection, "mysql"
-    except Exception as e:
-        logger.error(f"MySQL connection to {host}:{port} failed ({e}). Falling back to local SQLite.")
-        USING_MYSQL = False
-        _MYSQL_UNAVAILABLE = True
-        conn = sqlite3.connect("candidate_db.sqlite")
-        conn.row_factory = sqlite3.Row
-        return conn, "sqlite"
+    ssl_modes = [None, {"ssl_disabled": True}] if ("proxy.rlwy.net" in host or "railway" in host) else [None]
+
+    last_err = None
+    for ssl_cfg in ssl_modes:
+        try:
+            ssl_lbl = " (no-ssl)" if ssl_cfg else ""
+            conn_kwargs = {
+                "host": host,
+                "port": port,
+                "user": user,
+                "password": password,
+                "database": database,
+                "charset": "utf8mb4",
+                "cursorclass": pymysql.cursors.DictCursor,
+                "connect_timeout": 8
+            }
+            if ssl_cfg:
+                conn_kwargs["ssl"] = ssl_cfg
+
+            connection = pymysql.connect(**conn_kwargs)
+            connection.ping(reconnect=True)
+            USING_MYSQL = True
+            _MYSQL_UNAVAILABLE = False
+            logger.info(f"[DB Success] Successfully connected to MySQL database on '{host}:{port}'{ssl_lbl}!")
+            return connection, "mysql"
+        except Exception as e:
+            last_err = e
+            logger.warning(f"MySQL connection to {host}:{port} failed ({e}). Retrying with SSL fallback...")
+
+    logger.error(f"MySQL connection to {host}:{port} failed ({last_err}). Falling back to local SQLite.")
+    USING_MYSQL = False
+    _MYSQL_UNAVAILABLE = True
+    conn = sqlite3.connect("candidate_db.sqlite")
+    conn.row_factory = sqlite3.Row
+    return conn, "sqlite"
 
 def init_db():
     """Auto-initialize 'candidates', 'users', and 'otp_logs' tables in database."""
     global USING_MYSQL, _MYSQL_UNAVAILABLE
+    host, port, user, password, db_name = resolve_db_credentials()
     conn = None
     try:
         conn, db_type = get_db_connection()
@@ -94,21 +107,12 @@ def init_db():
         if db_type == "mysql":
             # First create database if missing
             try:
-                temp_conn = pymysql.connect(
-                    host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASSWORD, connect_timeout=3
-                )
-                with temp_conn.cursor() as temp_cursor:
-                    temp_cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}` CHARACTER SET utf8mb4;")
-                temp_conn.close()
-            except Exception as _ex:
-                logger.warning(f"Database pre-creation notice: {_ex}")
-
-            # Create MySQL Tables with complete modern schema
-            try:
-                cursor.execute(f"USE `{DB_NAME}`;")
+                cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
+                cursor.execute(f"USE `{db_name}`;")
             except Exception as _ue:
                 logger.warning(f"Database USE notice: {_ue}")
 
+            # Create MySQL Tables with complete modern schema
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS candidates (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -156,6 +160,8 @@ def init_db():
                     company_name VARCHAR(255),
                     company_token VARCHAR(64) UNIQUE,
                     logo_base64 LONGTEXT,
+                    sender_mobile VARCHAR(20),
+                    link_enabled TINYINT(1) DEFAULT 1,
                     hide_company_name TINYINT(1) DEFAULT 0,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -227,10 +233,30 @@ def init_db():
                     company_name TEXT,
                     company_token TEXT UNIQUE,
                     logo_base64 TEXT,
+                    sender_mobile TEXT,
+                    link_enabled INTEGER DEFAULT 1,
                     hide_company_name INTEGER DEFAULT 0,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
             """)
+
+            # Ensure columns exist in SQLite if table was previously created without them
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN sender_mobile TEXT;")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN link_enabled INTEGER DEFAULT 1;")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN hide_company_name INTEGER DEFAULT 0;")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN company_token TEXT;")
+            except Exception:
+                pass
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS otp_logs (
