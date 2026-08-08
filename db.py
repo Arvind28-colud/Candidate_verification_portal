@@ -46,26 +46,36 @@ def get_db_connection():
         conn.row_factory = sqlite3.Row
         return conn, "sqlite"
 
-    try:
-        connection = pymysql.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_NAME,
-            charset='utf8mb4',
-            cursorclass=pymysql.cursors.DictCursor,
-            connect_timeout=2
-        )
-        USING_MYSQL = True
-        return connection, "mysql"
-    except Exception as e:
-        logger.info(f"MySQL not available ({e}). Using local SQLite database candidate_db.sqlite.")
-        USING_MYSQL = False
-        _MYSQL_UNAVAILABLE = True
-        conn = sqlite3.connect("candidate_db.sqlite")
-        conn.row_factory = sqlite3.Row
-        return conn, "sqlite"
+    ssl_modes = [None, {"ssl_disabled": True}] if ("proxy.rlwy.net" in DB_HOST or "railway" in DB_HOST) else [None]
+
+    for ssl_cfg in ssl_modes:
+        try:
+            conn_kwargs = {
+                "host": DB_HOST,
+                "port": DB_PORT,
+                "user": DB_USER,
+                "password": DB_PASSWORD,
+                "database": DB_NAME,
+                "charset": "utf8mb4",
+                "cursorclass": pymysql.cursors.DictCursor,
+                "connect_timeout": 6
+            }
+            if ssl_cfg:
+                conn_kwargs["ssl"] = ssl_cfg
+
+            connection = pymysql.connect(**conn_kwargs)
+            USING_MYSQL = True
+            _MYSQL_UNAVAILABLE = False
+            return connection, "mysql"
+        except Exception as e:
+            logger.info(f"MySQL connection attempt failed ({e}).")
+
+    logger.info(f"MySQL not available. Using local SQLite database candidate_db.sqlite.")
+    USING_MYSQL = False
+    _MYSQL_UNAVAILABLE = True
+    conn = sqlite3.connect("candidate_db.sqlite")
+    conn.row_factory = sqlite3.Row
+    return conn, "sqlite"
 
 def init_db():
     """Auto-initialize 'candidates', 'users', and 'otp_logs' tables in database."""
@@ -139,6 +149,8 @@ def init_db():
                     company_name VARCHAR(255),
                     company_token VARCHAR(64) UNIQUE,
                     logo_base64 LONGTEXT,
+                    sender_mobile VARCHAR(20),
+                    link_enabled TINYINT(1) DEFAULT 1,
                     hide_company_name TINYINT(1) DEFAULT 0,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -210,10 +222,22 @@ def init_db():
                     company_name TEXT,
                     company_token TEXT UNIQUE,
                     logo_base64 TEXT,
+                    sender_mobile TEXT,
+                    link_enabled INTEGER DEFAULT 1,
                     hide_company_name INTEGER DEFAULT 0,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
             """)
+
+            # Ensure columns exist in SQLite if table was previously created without them
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN sender_mobile TEXT;")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN link_enabled INTEGER DEFAULT 1;")
+            except Exception:
+                pass
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS otp_logs (
