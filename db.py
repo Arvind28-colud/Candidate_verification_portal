@@ -12,116 +12,64 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("db")
 
-def resolve_db_credentials():
-    """Dynamically resolves MySQL credentials from environment variables."""
-    url_to_parse = (
-        os.getenv("MYSQL_PUBLIC_URL") or 
-        os.getenv("MYSQL_URL") or 
-        os.getenv("MYSQL_PRIVATE_URL") or 
-        os.getenv("DATABASE_URL")
-    )
-    
-    host = os.getenv("MYSQLHOST") or os.getenv("MYSQL_HOST") or os.getenv("DB_HOST", "localhost")
-    port = int(os.getenv("MYSQLPORT") or os.getenv("MYSQL_PORT") or os.getenv("DB_PORT", 3306))
-    user = os.getenv("MYSQLUSER") or os.getenv("MYSQL_USER") or os.getenv("DB_USER", "root")
-    password = os.getenv("MYSQLPASSWORD") or os.getenv("MYSQL_PASSWORD") or os.getenv("DB_PASSWORD", "")
-    database = os.getenv("MYSQLDATABASE") or os.getenv("MYSQL_DATABASE") or os.getenv("DB_NAME", "candidate_db")
+DB_HOST = os.getenv("MYSQLHOST") or os.getenv("DB_HOST", "localhost")
+DB_PORT = int(os.getenv("MYSQLPORT") or os.getenv("DB_PORT", 3306))
+DB_USER = os.getenv("MYSQLUSER") or os.getenv("DB_USER", "root")
+DB_PASSWORD = os.getenv("MYSQLPASSWORD") or os.getenv("DB_PASSWORD", "")
+DB_NAME = os.getenv("MYSQLDATABASE") or os.getenv("DB_NAME", "candidate_db")
 
-    if url_to_parse and url_to_parse.startswith("mysql"):
-        try:
-            from urllib.parse import urlparse
-            _parsed = urlparse(url_to_parse)
-            if _parsed.hostname:
-                host = _parsed.hostname
-            if _parsed.port:
-                port = _parsed.port
-            if _parsed.username:
-                user = _parsed.username
-            if _parsed.password:
-                password = _parsed.password
-            if _parsed.path:
-                clean_path = _parsed.path.strip("/")
-                if clean_path:
-                    database = clean_path
-        except Exception as _e:
-            logger.warning(f"Error parsing MySQL URL: {_e}")
+# Parse Railway MYSQL_URL / MYSQL_PUBLIC_URL if present
+mysql_url_env = os.getenv("MYSQL_URL") or os.getenv("MYSQL_PUBLIC_URL") or os.getenv("DATABASE_URL")
+if mysql_url_env and mysql_url_env.startswith("mysql"):
+    try:
+        from urllib.parse import urlparse
+        _parsed = urlparse(mysql_url_env)
+        DB_HOST = _parsed.hostname or DB_HOST
+        DB_PORT = _parsed.port or DB_PORT
+        DB_USER = _parsed.username or DB_USER
+        DB_PASSWORD = _parsed.password or DB_PASSWORD
+        DB_NAME = (_parsed.path or "").strip("/") or DB_NAME
+    except Exception as _e:
+        logger.warning(f"Error parsing MYSQL_URL: {_e}")
 
-    return host, port, user, password, database
-
-
-import time
-import ssl
-
-# Flag indicating if MySQL connection is active
+# Flag indicating if MySQL connection is active or falling back to local database
 USING_MYSQL = True
 _MYSQL_UNAVAILABLE = False
 
 def get_db_connection():
-    """Connects strictly to MySQL database with PyMySQL proxy compatibility and no SQLite fallback."""
+    """Attempt MySQL connection; fallback to local SQLite DB if MySQL is unreachable."""
     global USING_MYSQL, _MYSQL_UNAVAILABLE
 
-    host, port, user, password, database = resolve_db_credentials()
-    logger.info(f"[MySQL] Connecting to host='{host}', port={port}, user='{user}', database='{database}'...")
+    if _MYSQL_UNAVAILABLE:
+        USING_MYSQL = False
+        conn = sqlite3.connect("candidate_db.sqlite")
+        conn.row_factory = sqlite3.Row
+        return conn, "sqlite"
 
-    ssl_ctx = ssl.create_default_context()
-    ssl_ctx.check_hostname = False
-    ssl_ctx.verify_mode = ssl.CERT_NONE
-
-    ssl_options = [None, {"ssl_disabled": True}, ssl_ctx]
-
-    last_error = None
-    for attempt in range(1, 4):
-        for ssl_opt in ssl_options:
-            try:
-                conn_kwargs = {
-                    "host": host,
-                    "port": port,
-                    "user": user,
-                    "password": password,
-                    "database": database,
-                    "charset": "utf8mb4",
-                    "cursorclass": pymysql.cursors.DictCursor,
-                    "connect_timeout": 12,
-                    "autocommit": True
-                }
-                if ssl_opt:
-                    conn_kwargs["ssl"] = ssl_opt
-
-                connection = pymysql.connect(**conn_kwargs)
-                USING_MYSQL = True
-                _MYSQL_UNAVAILABLE = False
-                logger.info(f"[MySQL Success] Connected cleanly to '{host}:{port}'!")
-                return connection, "mysql"
-            except Exception as e:
-                last_error = e
-                logger.warning(f"MySQL connection attempt to {host}:{port} ({e})")
-                time.sleep(0.3)
-
-    # Final attempt with direct standard parameters
     try:
         connection = pymysql.connect(
-            host=host,
-            port=port,
-            user=user,
-            password=password,
-            database=database,
-            charset="utf8mb4",
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME,
+            charset='utf8mb4',
             cursorclass=pymysql.cursors.DictCursor,
-            connect_timeout=15,
-            autocommit=True
+            connect_timeout=2
         )
         USING_MYSQL = True
-        _MYSQL_UNAVAILABLE = False
-        logger.info(f"[MySQL Success] Connected to '{host}:{port}'!")
         return connection, "mysql"
-    except Exception as final_err:
-        logger.error(f"[CRITICAL] Could not connect to MySQL database at {host}:{port}: {final_err}")
-        raise RuntimeError(f"Could not connect to MySQL database at {host}:{port}. Error: {final_err}")
+    except Exception as e:
+        logger.info(f"MySQL not available ({e}). Using local SQLite database candidate_db.sqlite.")
+        USING_MYSQL = False
+        _MYSQL_UNAVAILABLE = True
+        conn = sqlite3.connect("candidate_db.sqlite")
+        conn.row_factory = sqlite3.Row
+        return conn, "sqlite"
 
 def init_db():
     """Auto-initialize 'candidates', 'users', and 'otp_logs' tables in database."""
     global USING_MYSQL, _MYSQL_UNAVAILABLE
-    host, port, user, password, db_name = resolve_db_credentials()
     conn = None
     try:
         conn, db_type = get_db_connection()
@@ -129,12 +77,21 @@ def init_db():
         if db_type == "mysql":
             # First create database if missing
             try:
-                cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
-                cursor.execute(f"USE `{db_name}`;")
+                temp_conn = pymysql.connect(
+                    host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASSWORD, connect_timeout=3
+                )
+                with temp_conn.cursor() as temp_cursor:
+                    temp_cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}` CHARACTER SET utf8mb4;")
+                temp_conn.close()
+            except Exception as _ex:
+                logger.warning(f"Database pre-creation notice: {_ex}")
+
+            # Create MySQL Tables with complete modern schema
+            try:
+                cursor.execute(f"USE `{DB_NAME}`;")
             except Exception as _ue:
                 logger.warning(f"Database USE notice: {_ue}")
 
-            # Create MySQL Tables with complete modern schema
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS candidates (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -182,8 +139,6 @@ def init_db():
                     company_name VARCHAR(255),
                     company_token VARCHAR(64) UNIQUE,
                     logo_base64 LONGTEXT,
-                    sender_mobile VARCHAR(20),
-                    link_enabled TINYINT(1) DEFAULT 1,
                     hide_company_name TINYINT(1) DEFAULT 0,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -255,30 +210,10 @@ def init_db():
                     company_name TEXT,
                     company_token TEXT UNIQUE,
                     logo_base64 TEXT,
-                    sender_mobile TEXT,
-                    link_enabled INTEGER DEFAULT 1,
                     hide_company_name INTEGER DEFAULT 0,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
             """)
-
-            # Ensure columns exist in SQLite if table was previously created without them
-            try:
-                cursor.execute("ALTER TABLE users ADD COLUMN sender_mobile TEXT;")
-            except Exception:
-                pass
-            try:
-                cursor.execute("ALTER TABLE users ADD COLUMN link_enabled INTEGER DEFAULT 1;")
-            except Exception:
-                pass
-            try:
-                cursor.execute("ALTER TABLE users ADD COLUMN hide_company_name INTEGER DEFAULT 0;")
-            except Exception:
-                pass
-            try:
-                cursor.execute("ALTER TABLE users ADD COLUMN company_token TEXT;")
-            except Exception:
-                pass
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS otp_logs (
