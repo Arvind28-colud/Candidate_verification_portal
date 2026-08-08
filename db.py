@@ -64,32 +64,49 @@ USING_MYSQL = True
 _MYSQL_UNAVAILABLE = False
 
 def get_db_connection():
-    """Attempt MySQL connection using resolved credentials."""
+    """Attempt MySQL connection using resolved credentials with automatic Railway private internal host fallback."""
     global USING_MYSQL, _MYSQL_UNAVAILABLE
 
     host, port, user, password, database = resolve_db_credentials()
+    
+    # Candidate hosts to try for private Railway networking
+    hosts_to_try = [host]
+    is_railway = bool(os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_SERVICE_ID"))
+    if is_railway:
+        if "mysql" not in hosts_to_try:
+            hosts_to_try.append("mysql")
+        if "mysql.railway.internal" not in hosts_to_try:
+            hosts_to_try.append("mysql.railway.internal")
 
-    try:
-        connection = pymysql.connect(
-            host=host,
-            port=port,
-            user=user,
-            password=password,
-            database=database,
-            charset='utf8mb4',
-            cursorclass=pymysql.cursors.DictCursor,
-            connect_timeout=5
-        )
-        USING_MYSQL = True
-        _MYSQL_UNAVAILABLE = False
-        return connection, "mysql"
-    except Exception as e:
-        logger.error(f"MySQL connection to {host}:{port} failed ({e}). Falling back to local SQLite.")
-        USING_MYSQL = False
-        _MYSQL_UNAVAILABLE = True
-        conn = sqlite3.connect("candidate_db.sqlite")
-        conn.row_factory = sqlite3.Row
-        return conn, "sqlite"
+    last_error = None
+    for h in hosts_to_try:
+        try:
+            target_port = port if "proxy.rlwy.net" in h else 3306
+            logger.info(f"[DB Resolver] Attempting MySQL connection to host='{h}', port={target_port}, user='{user}', database='{database}'...")
+            connection = pymysql.connect(
+                host=h,
+                port=target_port,
+                user=user,
+                password=password,
+                database=database,
+                charset='utf8mb4',
+                cursorclass=pymysql.cursors.DictCursor,
+                connect_timeout=4
+            )
+            USING_MYSQL = True
+            _MYSQL_UNAVAILABLE = False
+            logger.info(f"[DB Success] Successfully connected to MySQL database on '{h}:{target_port}'!")
+            return connection, "mysql"
+        except Exception as e:
+            last_error = e
+            logger.warning(f"MySQL connection to '{h}' failed ({e}).")
+
+    logger.error(f"All MySQL connection attempts failed ({last_error}). Falling back to local SQLite.")
+    USING_MYSQL = False
+    _MYSQL_UNAVAILABLE = True
+    conn = sqlite3.connect("candidate_db.sqlite")
+    conn.row_factory = sqlite3.Row
+    return conn, "sqlite"
 
 def init_db():
     """Auto-initialize 'candidates', 'users', and 'otp_logs' tables in database."""
