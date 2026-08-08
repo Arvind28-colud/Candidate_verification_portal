@@ -13,17 +13,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("db")
 
 def resolve_db_credentials():
-    """Dynamically resolves MySQL credentials from environment, preferring Railway private internal networking."""
-    private_url = os.getenv("MYSQL_PRIVATE_URL") or os.getenv("MYSQLPRIVATEURL")
-    is_railway = bool(os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_SERVICE_ID"))
-
-    # Only parse MYSQL_URL / DATABASE_URL if it does not point to deleted public proxy.rlwy.net
-    url_to_parse = private_url
-    if not url_to_parse:
-        raw_url = os.getenv("MYSQL_URL") or os.getenv("DATABASE_URL") or os.getenv("MYSQL_PUBLIC_URL")
-        if raw_url and not ("proxy.rlwy.net" in raw_url or "railway.app" in raw_url):
-            url_to_parse = raw_url
-
+    """Dynamically resolves MySQL credentials from environment variables."""
+    url_to_parse = (
+        os.getenv("MYSQL_PUBLIC_URL") or 
+        os.getenv("MYSQL_URL") or 
+        os.getenv("MYSQL_PRIVATE_URL") or 
+        os.getenv("MYSQLPRIVATEURL") or 
+        os.getenv("DATABASE_URL")
+    )
+    
     host = os.getenv("MYSQLHOST") or os.getenv("MYSQL_HOST") or os.getenv("DB_HOST", "localhost")
     port = int(os.getenv("MYSQLPORT") or os.getenv("MYSQL_PORT") or os.getenv("DB_PORT", 3306))
     user = os.getenv("MYSQLUSER") or os.getenv("MYSQL_USER") or os.getenv("DB_USER", "root")
@@ -49,13 +47,6 @@ def resolve_db_credentials():
         except Exception as _e:
             logger.warning(f"Error parsing MySQL URL: {_e}")
 
-    # If running on Railway and host is pointing to deleted public proxy.rlwy.net, override host to Railway private network
-    if is_railway and ("proxy.rlwy.net" in host or "railway.app" in host or host == "localhost"):
-        internal_host = os.getenv("MYSQLHOST") or os.getenv("MYSQL_HOST") or "mysql.railway.internal"
-        if "proxy.rlwy.net" not in internal_host:
-            host = internal_host
-            port = 3306
-
     return host, port, user, password, database
 
 
@@ -64,24 +55,23 @@ USING_MYSQL = True
 _MYSQL_UNAVAILABLE = False
 
 def get_db_connection():
-    """Attempt MySQL connection using resolved credentials with automatic Railway private internal host fallback."""
+    """Attempt MySQL connection using resolved credentials with automatic fallback."""
     global USING_MYSQL, _MYSQL_UNAVAILABLE
 
     host, port, user, password, database = resolve_db_credentials()
     
-    # Candidate hosts to try for private Railway networking
     hosts_to_try = [host]
     is_railway = bool(os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_SERVICE_ID"))
     if is_railway:
-        if "mysql" not in hosts_to_try:
-            hosts_to_try.append("mysql")
         if "mysql.railway.internal" not in hosts_to_try:
             hosts_to_try.append("mysql.railway.internal")
+        if "mysql" not in hosts_to_try:
+            hosts_to_try.append("mysql")
 
     last_error = None
     for h in hosts_to_try:
         try:
-            target_port = port if "proxy.rlwy.net" in h else 3306
+            target_port = port if h == host else 3306
             logger.info(f"[DB Resolver] Attempting MySQL connection to host='{h}', port={target_port}, user='{user}', database='{database}'...")
             connection = pymysql.connect(
                 host=h,
@@ -91,7 +81,7 @@ def get_db_connection():
                 database=database,
                 charset='utf8mb4',
                 cursorclass=pymysql.cursors.DictCursor,
-                connect_timeout=4
+                connect_timeout=6
             )
             USING_MYSQL = True
             _MYSQL_UNAVAILABLE = False
@@ -99,7 +89,7 @@ def get_db_connection():
             return connection, "mysql"
         except Exception as e:
             last_error = e
-            logger.warning(f"MySQL connection to '{h}' failed ({e}).")
+            logger.warning(f"MySQL connection to '{h}:{target_port}' failed ({e}).")
 
     logger.error(f"All MySQL connection attempts failed ({last_error}). Falling back to local SQLite.")
     USING_MYSQL = False
